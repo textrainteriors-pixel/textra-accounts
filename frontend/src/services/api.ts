@@ -1,6 +1,6 @@
 import { authService } from './authService';
 
-const API_URL = 'http://localhost:5000/api/accounts';
+const API_URL = 'https://textra-accounts.onrender.com/api/accounts';
 
 const getAuthHeaders = () => {
   const user = authService.getCurrentUser();
