@@ -2,7 +2,7 @@ import { authService } from './authService';
 
 const API_URL = 'https://textra-accounts.onrender.com/api/accounts';
 
-const getAuthHeaders = () => {
+const getAuthHeaders = (): Record<string, string> => {
   const user = authService.getCurrentUser();
   if (user && user.token) {
     return {
