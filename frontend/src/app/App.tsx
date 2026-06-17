@@ -761,29 +761,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Daily Summary Strip */}
-      <div className="hidden md:grid bg-white border-b border-border px-4 sm:px-6 py-3 md:grid-cols-4 gap-4 flex-shrink-0 overflow-x-auto">
-        {[
-          { label: "Opening Total", value: `₹${fmt(totalOpeningBalance)}`, icon: BarChart3, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Total Credit", value: `+₹${fmt(totalDailyCredit)}`, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
-          { label: "Total Debit", value: `-₹${fmt(totalDailyDebit)}`, icon: TrendingDown, color: "text-red-500", bg: "bg-red-50" },
-          {
-            label: "Net Balance", value: fmtSign(totalNetBalance), icon: CreditCard,
-            color: totalNetBalance >= 0 ? "text-blue-600" : "text-red-500",
-            bg: totalNetBalance >= 0 ? "bg-blue-50" : "bg-red-50",
-          },
-        ].map(item => (
-          <div key={item.label} className="flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-full ${item.bg} flex items-center justify-center flex-shrink-0`}>
-              <item.icon size={15} className={item.color} />
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">{item.label}</div>
-              <div className={`font-mono font-semibold text-sm ${item.color}`}>{item.value}</div>
-            </div>
-          </div>
-        ))}
-      </div>
+
 
       <div className="flex flex-1 overflow-hidden relative">
         {/* Backdrop for mobile sidebar */}
@@ -892,23 +870,7 @@ export default function App() {
             })}
           </nav>
 
-          {/* Sidebar summary */}
-          <div className="border-t border-border p-4">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-3">Daily Summary</p>
-            {accounts.map(acc => {
-              const closing = calcBalance(acc);
-              return (
-                <div key={acc.id} className="flex justify-between items-center py-0.5">
-                  <span className="text-xs text-muted-foreground truncate">{acc.name}</span>
-                  <span className={`text-xs font-mono font-semibold ${closing < 0 ? "text-red-500" : "text-foreground"}`}>{fmtSign(closing)}</span>
-                </div>
-              );
-            })}
-            <div className="border-t border-border mt-2 pt-2 flex justify-between items-center">
-              <span className="text-xs font-semibold">Total</span>
-              <span className={`text-xs font-mono font-bold ${totalNetBalance < 0 ? "text-red-500" : "text-accent"}`}>{fmtSign(totalNetBalance)}</span>
-            </div>
-          </div>
+
 
           <div className="p-4 mt-auto border-t border-border bg-gray-50/50">
             <button
