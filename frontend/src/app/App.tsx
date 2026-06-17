@@ -431,15 +431,16 @@ function Dashboard({
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {kpis.map(kpi => (
-          <div key={kpi.label} className={`bg-white rounded-2xl border ${kpi.border} p-5 flex flex-col gap-3`}>
-            <div className={`w-10 h-10 rounded-xl ${kpi.bg} flex items-center justify-center`}>
-              <kpi.icon size={18} className={kpi.iconColor} />
+          <div key={kpi.label} className={`bg-white rounded-xl sm:rounded-2xl border ${kpi.border} p-3 sm:p-5 flex flex-col gap-2 sm:gap-3`}>
+            <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl ${kpi.bg} flex items-center justify-center`}>
+              <kpi.icon size={16} className={`sm:hidden ${kpi.iconColor}`} />
+              <kpi.icon size={18} className={`hidden sm:block ${kpi.iconColor}`} />
             </div>
             <div>
-              <div className="text-xs text-muted-foreground mb-1">{kpi.label}</div>
-              <div className={`text-lg font-mono font-bold leading-tight ${kpi.valueColor}`}>{kpi.value}</div>
+              <div className="text-[10px] sm:text-xs text-muted-foreground mb-0.5 sm:mb-1">{kpi.label}</div>
+              <div className={`text-sm sm:text-lg font-mono font-bold leading-tight truncate ${kpi.valueColor}`}>{kpi.value}</div>
             </div>
           </div>
         ))}
