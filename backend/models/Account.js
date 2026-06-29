@@ -20,7 +20,8 @@ const accountSchema = new mongoose.Schema({
   openingBalance: { type: Number, required: true, default: 0 },
   color: { type: String, default: '#1e3a5f' },
   bgColor: { type: String, default: '#e8edf5' },
-  transactions: [transactionSchema]
+  transactions: [transactionSchema],
+  projects: { type: [String], default: [] }
 }, { timestamps: true });
 
 const Account = mongoose.model('Account', accountSchema);

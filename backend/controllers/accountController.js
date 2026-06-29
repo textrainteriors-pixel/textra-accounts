@@ -24,6 +24,7 @@ export const getAccounts = async (req, res) => {
         color: acc.color,
         bgColor: acc.bgColor,
         transactions: formattedTxs,
+        projects: acc.projects || [],
         createdAt: acc.createdAt
       };
     });
@@ -45,7 +46,8 @@ export const createAccount = async (req, res) => {
       color: color || '#1e3a5f',
       bgColor: bgColor || '#e8edf5',
       openingBalance: openingBalance || 0,
-      transactions: []
+      transactions: [],
+      projects: []
     });
 
     const createdAccount = await account.save();
@@ -57,6 +59,7 @@ export const createAccount = async (req, res) => {
       color: createdAccount.color,
       bgColor: createdAccount.bgColor,
       transactions: [],
+      projects: [],
       createdAt: createdAccount.createdAt
     });
   } catch (error) {
@@ -64,18 +67,58 @@ export const createAccount = async (req, res) => {
   }
 };
 
-// @desc    Update account details (e.g. name)
+// @desc    Update account details (name, type, color, bgColor, openingBalance)
 // @route   PUT /api/accounts/:id
 export const updateAccount = async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, type, color, bgColor, openingBalance } = req.body;
     const account = await Account.findById(req.params.id);
 
     if (account) {
-      if (name) account.name = name;
+      if (name !== undefined) account.name = name;
+      if (type !== undefined) account.type = type;
+      if (color !== undefined) account.color = color;
+      if (bgColor !== undefined) account.bgColor = bgColor;
+      if (openingBalance !== undefined) account.openingBalance = Number(openingBalance);
       
       const updatedAccount = await account.save();
-      res.json(updatedAccount);
+      // Map _id to id for frontend compatibility
+      const formattedTxs = updatedAccount.transactions.map(tx => ({
+        id: tx._id,
+        date: tx.date,
+        description: tx.description,
+        type: tx.type,
+        amount: tx.amount,
+        reference: tx.reference,
+        document: tx.document
+      }));
+      res.json({
+        id: updatedAccount._id,
+        name: updatedAccount.name,
+        type: updatedAccount.type,
+        openingBalance: updatedAccount.openingBalance,
+        color: updatedAccount.color,
+        bgColor: updatedAccount.bgColor,
+        transactions: formattedTxs,
+        projects: updatedAccount.projects || [],
+        createdAt: updatedAccount.createdAt
+      });
+    } else {
+      res.status(404).json({ message: 'Account not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Delete account
+// @route   DELETE /api/accounts/:id
+export const deleteAccount = async (req, res) => {
+  try {
+    const account = await Account.findById(req.params.id);
+    if (account) {
+      await Account.deleteOne({ _id: req.params.id });
+      res.json({ message: 'Account deleted successfully' });
     } else {
       res.status(404).json({ message: 'Account not found' });
     }
@@ -163,6 +206,44 @@ export const deleteTransaction = async (req, res) => {
   }
 };
 
+// @desc    Update transaction
+// @route   PUT /api/accounts/:id/transactions/:txId
+export const updateTransaction = async (req, res) => {
+  try {
+    const { date, description, type, amount, reference, document } = req.body;
+    const account = await Account.findById(req.params.id);
+
+    if (account) {
+      const transaction = account.transactions.id(req.params.txId);
+      if (transaction) {
+        if (date !== undefined) transaction.date = date;
+        if (description !== undefined) transaction.description = description;
+        if (type !== undefined) transaction.type = type;
+        if (amount !== undefined) transaction.amount = Number(amount);
+        if (reference !== undefined) transaction.reference = reference;
+        if (document !== undefined) transaction.document = document;
+
+        await account.save();
+        res.json({
+          id: transaction._id,
+          date: transaction.date,
+          description: transaction.description,
+          type: transaction.type,
+          amount: transaction.amount,
+          reference: transaction.reference,
+          document: transaction.document
+        });
+      } else {
+        res.status(404).json({ message: 'Transaction not found' });
+      }
+    } else {
+      res.status(404).json({ message: 'Account not found' });
+    }
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // @desc    Create initial accounts if empty
 // @route   POST /api/accounts/seed
 export const seedAccounts = async (req, res) => {
@@ -192,6 +273,32 @@ export const clearAccounts = async (req, res) => {
   try {
     await Account.deleteMany({});
     res.json({ message: 'All database records cleared successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Add project to company/account
+// @route   POST /api/accounts/:id/projects
+export const addProject = async (req, res) => {
+  try {
+    const { projectName } = req.body;
+    if (!projectName || !projectName.trim()) {
+      return res.status(400).json({ message: 'Project name is required' });
+    }
+    const account = await Account.findById(req.params.id);
+    if (account) {
+      if (!account.projects) {
+        account.projects = [];
+      }
+      if (!account.projects.includes(projectName.trim())) {
+        account.projects.push(projectName.trim());
+        await account.save();
+      }
+      res.json(account.projects);
+    } else {
+      res.status(404).json({ message: 'Account not found' });
+    }
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

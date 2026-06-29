@@ -318,7 +318,7 @@ function generateMonthlyPDF(accounts: Account[], month: number, year: number) {
 
       autoTable(doc, {
         startY: 44,
-        head: [["Date", "Description", "Reference", "Credit (Rs.)", "Debit (Rs.)", "Balance (Rs.)"]],
+        head: [["Date", "Description", acc.type === "company" ? "Project" : "Reference", "Credit (Rs.)", "Debit (Rs.)", "Balance (Rs.)"]],
         body: rows,
         theme: "striped",
         headStyles: { fillColor: [30, 58, 95], textColor: 255, fontStyle: "bold", fontSize: 8.5 },
@@ -356,9 +356,13 @@ function generateMonthlyPDF(accounts: Account[], month: number, year: number) {
 function Dashboard({
   accounts,
   onNavigate,
+  onEditTransaction,
+  onDeleteTransaction,
 }: {
   accounts: Account[];
   onNavigate: (id: string) => void;
+  onEditTransaction: (tx: any, accountId: string) => void;
+  onDeleteTransaction: (txId: string, accountId: string) => void;
 }) {
   const totalOpening = accounts.reduce((s, a) => s + a.openingBalance, 0);
   const totalCredit = accounts.reduce((s, a) => s + calcTotalCredit(a), 0);
@@ -377,7 +381,7 @@ function Dashboard({
     .map(a => ({ name: a.name, value: calcBalance(a), color: a.color }));
 
   const recentTxs = accounts
-    .flatMap(a => a.transactions.map(tx => ({ ...tx, accountId: a.id, accountName: a.name, accountColor: a.color, accountBg: a.bgColor })))
+    .flatMap(a => a.transactions.map(tx => ({ ...tx, accountId: a.id, accountName: a.name, accountColor: a.color, accountBg: a.bgColor, accountType: a.type })))
     .sort((a, b) => b.date.localeCompare(a.date))
     .slice(0, 8);
 
@@ -588,23 +592,48 @@ function Dashboard({
           </div>
           <div className="divide-y divide-border/60">
             {recentTxs.map((tx: any) => (
-              <div key={tx.id} className="px-5 py-3 flex items-center gap-3 hover:bg-gray-50 transition-colors">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${tx.type === "credit" ? "bg-emerald-50" : "bg-red-50"}`}>
-                  {tx.type === "credit"
-                    ? <ArrowUpRight size={14} className="text-emerald-600" />
-                    : <ArrowDownRight size={14} className="text-red-500" />
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium text-foreground truncate">{tx.description}</div>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ backgroundColor: tx.accountBg, color: tx.accountColor }}>{tx.accountName}</span>
-                    <span className="text-[10px] text-muted-foreground font-mono">{tx.date.split("-").reverse().join("/")}</span>
-                    {tx.reference && <span className="text-[10px] text-muted-foreground">{tx.reference}</span>}
+              <div key={tx.id} className="px-5 py-3 flex items-center justify-between gap-3 hover:bg-gray-50 transition-colors group">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${tx.type === "credit" ? "bg-emerald-50" : "bg-red-50"}`}>
+                    {tx.type === "credit"
+                      ? <ArrowUpRight size={14} className="text-emerald-600" />
+                      : <ArrowDownRight size={14} className="text-red-500" />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-foreground truncate">{tx.description}</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-[10px] px-1.5 py-0.5 rounded font-medium" style={{ backgroundColor: tx.accountBg, color: tx.accountColor }}>{tx.accountName}</span>
+                      <span className="text-[10px] text-muted-foreground font-mono">{tx.date.split("-").reverse().join("/")}</span>
+                      {tx.reference && (
+                        <span className="text-[10px] text-muted-foreground truncate max-w-[120px]">
+                          {tx.accountType === "company" ? `Project: ${tx.reference}` : `Ref: ${tx.reference}`}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className={`text-sm font-mono font-semibold flex-shrink-0 ${tx.type === "credit" ? "text-emerald-600" : "text-red-500"}`}>
-                  {tx.type === "credit" ? "+" : "-"}₹{tx.amount.toLocaleString("en-IN")}
+
+                <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className={`text-sm font-mono font-semibold ${tx.type === "credit" ? "text-emerald-600" : "text-red-500"}`}>
+                    {tx.type === "credit" ? "+" : "-"}₹{tx.amount.toLocaleString("en-IN")}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => onEditTransaction(tx, tx.accountId)}
+                      className="p-1 text-gray-500 hover:text-accent rounded hover:bg-gray-100 transition-colors cursor-pointer"
+                      title="Edit Entry"
+                    >
+                      <Edit3 size={13} />
+                    </button>
+                    <button
+                      onClick={() => onDeleteTransaction(tx.id, tx.accountId)}
+                      className="p-1 text-gray-500 hover:text-red-500 rounded hover:bg-red-50 transition-colors cursor-pointer"
+                      title="Delete Entry"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -618,11 +647,24 @@ function Dashboard({
 // ─── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!authService.getCurrentUser());
-  const { accounts, loading, addTransaction: handleAddTx, deleteTransaction: handleDelTx, saveOpeningBalance: handleSaveBal, addAccount: handleAddAccount, editAccountName } = useAccountsController(isAuthenticated);
+  const { accounts, loading, addTransaction: handleAddTx, editTransaction, deleteTransaction: handleDelTx, saveOpeningBalance: handleSaveBal, addAccount: handleAddAccount, editAccount, deleteAccount, editAccountName, addProject } = useAccountsController(isAuthenticated);
   const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [confirmModal, setConfirmModal] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    type?: "danger" | "warning" | "info";
+    onConfirm: () => void;
+  } | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [companyForm, setCompanyForm] = useState({ name: "", type: "company", openingBalance: "", color: "#1e3a5f" });
+  const [showAddProject, setShowAddProject] = useState(false);
+  const [projectForm, setProjectForm] = useState({ name: "", companyId: "" });
+  const [editingTxId, setEditingTxId] = useState<string | null>(null);
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [editingCompanyId, setEditingCompanyId] = useState<string | null>(null);
   const [showReport, setShowReport] = useState(false);
   const [reportMonth, setReportMonth] = useState(new Date().getMonth() + 1);
   const [reportYear, setReportYear] = useState(new Date().getFullYear());
@@ -661,6 +703,7 @@ export default function App() {
   };
 
   const activeAccount = accounts.find(a => a.id === activeTab);
+  const modalAccount = activeAccount || (editingAccountId ? accounts.find(a => a.id === editingAccountId) : null);
 
   const runningBalances = useMemo(() => {
     if (!activeAccount) return [];
@@ -671,17 +714,69 @@ export default function App() {
     });
   }, [activeAccount]);
 
-  const addCompany = async () => {
-    if (!companyForm.name) return;
-    const newId = await handleAddAccount({
-      ...companyForm,
+  const saveCompany = async () => {
+    if (!companyForm.name.trim()) return;
+    const accountData = {
+      name: companyForm.name,
+      type: companyForm.type,
       openingBalance: parseFloat(companyForm.openingBalance) || 0,
+      color: companyForm.color,
       bgColor: companyForm.type === "overdraft" ? "#ffe4e6" : "#e8edf5",
-      color: companyForm.type === "overdraft" ? "#9f1239" : "#1e3a5f"
+    };
+
+    if (editingCompanyId) {
+      const current = accounts.find(a => a.id === editingCompanyId);
+      await editAccount(editingCompanyId, {
+        ...accountData,
+        color: companyForm.color || current?.color || "#1e3a5f",
+        bgColor: companyForm.type === "overdraft" ? "#ffe4e6" : (current?.bgColor || "#e8edf5")
+      });
+      setEditingCompanyId(null);
+      setCompanyForm({ name: "", type: "company", openingBalance: "", color: "#1e3a5f" });
+      setShowAddCompany(false);
+    } else {
+      const newId = await handleAddAccount({
+        ...accountData,
+        bgColor: companyForm.type === "overdraft" ? "#ffe4e6" : "#e8edf5",
+        color: companyForm.type === "overdraft" ? "#9f1239" : "#1e3a5f"
+      });
+      setCompanyForm({ name: "", type: "company", openingBalance: "", color: "#1e3a5f" });
+      setShowAddCompany(false);
+      if (newId) setActiveTab(newId);
+    }
+  };
+
+  const handleEditCompanyClick = (account: any) => {
+    setEditingCompanyId(account.id);
+    setCompanyForm({
+      name: account.name,
+      type: account.type,
+      openingBalance: String(account.openingBalance),
+      color: account.color || "#1e3a5f",
     });
-    setCompanyForm({ name: "", type: "company", openingBalance: "", color: "#1e3a5f" });
-    setShowAddCompany(false);
-    if (newId) setActiveTab(newId);
+    setShowAddCompany(true);
+  };
+
+  const handleDeleteCompanyClick = (accountId: string) => {
+    setConfirmModal({
+      show: true,
+      title: "Delete Account",
+      message: "Are you sure you want to delete this account and all its transactions? This action cannot be undone.",
+      confirmText: "Delete",
+      type: "danger",
+      onConfirm: async () => {
+        await deleteAccount(accountId);
+        setActiveTab("dashboard");
+        setConfirmModal(null);
+      }
+    });
+  };
+
+  const addProjectAction = async () => {
+    if (!projectForm.name || !projectForm.companyId) return;
+    await addProject(projectForm.companyId, projectForm.name);
+    setProjectForm({ name: "", companyId: "" });
+    setShowAddProject(false);
   };
 
   const addTransaction = () => {
@@ -694,13 +789,44 @@ export default function App() {
       reference: form.reference || undefined,
       document: form.document || undefined,
     };
-    handleAddTx(activeTab, tx);
+    if (editingTxId && editingAccountId) {
+      editTransaction(editingAccountId, editingTxId, tx);
+    } else {
+      handleAddTx(activeTab, tx);
+    }
     setForm({ date: today, description: "", type: "credit", amount: "", reference: "", document: null });
+    setEditingTxId(null);
+    setEditingAccountId(null);
     setShowForm(false);
   };
 
-  const deleteTransaction = (txId: string) => {
-    handleDelTx(activeTab, txId);
+  const handleEditClick = (tx: any, accountId?: string) => {
+    setEditingTxId(tx.id);
+    setEditingAccountId(accountId || activeTab);
+    setForm({
+      date: tx.date,
+      description: tx.description,
+      type: tx.type,
+      amount: String(tx.amount),
+      reference: tx.reference || "",
+      document: tx.document || null,
+    });
+    setShowForm(true);
+  };
+
+  const deleteTransaction = (txId: string, accountId?: string) => {
+    const targetAccountId = accountId || activeTab;
+    setConfirmModal({
+      show: true,
+      title: "Delete Entry",
+      message: "Are you sure you want to delete this transaction entry? This action cannot be undone.",
+      confirmText: "Delete",
+      type: "danger",
+      onConfirm: () => {
+        handleDelTx(targetAccountId, txId);
+        setConfirmModal(null);
+      }
+    });
   };
 
   const saveOpeningBalance = (accountId: string) => {
@@ -746,6 +872,16 @@ export default function App() {
         </div>
         <div className="flex items-center justify-between w-full sm:w-auto gap-4">
           <button
+            onClick={() => {
+              setProjectForm({ name: "", companyId: "" });
+              setShowAddProject(true);
+            }}
+            className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-semibold transition-all"
+          >
+            <Plus size={16} />
+            <span> Project</span>
+          </button>
+          <button
             onClick={() => setShowReport(true)}
             className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-semibold transition-all"
           >
@@ -774,106 +910,107 @@ export default function App() {
         )}
         {/* Sidebar */}
         <aside className={`${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out absolute md:relative z-30 h-full w-64 md:w-56 bg-white border-r border-border flex flex-col flex-shrink-0`}>
-          {/* Dashboard link */}
-          <div className="px-4 py-3 border-b border-border">
-            <button
-              onClick={() => setActiveTab("dashboard")}
-              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                activeTab === "dashboard"
-                  ? "bg-accent text-white"
-                  : "text-muted-foreground hover:bg-gray-50 hover:text-foreground"
-              }`}
-            >
-              <LayoutDashboard size={15} />
-              Dashboard
-            </button>
+          {/* Scrollable Navigation Area */}
+          <div className="flex-1 overflow-y-auto flex flex-col">
+            {/* Dashboard link */}
+            <div className="px-4 py-3 border-b border-border flex flex-col gap-2">
+              <button
+                onClick={() => setActiveTab("dashboard")}
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === "dashboard"
+                    ? "bg-accent text-white"
+                    : "text-muted-foreground hover:bg-gray-50 hover:text-foreground"
+                }`}
+              >
+                <LayoutDashboard size={15} />
+                Dashboard
+              </button>
+            </div>
+
+            <div className="px-4 py-2 border-b border-border flex items-center justify-between">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest py-1">Companies</p>
+              <button 
+                onClick={() => {
+                  setCompanyForm({ name: "", type: "company", openingBalance: "", color: "#1e3a5f" });
+                  setShowAddCompany(true);
+                }}
+                className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100 text-muted-foreground transition-colors"
+                title="Add Company"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+
+            <nav className="py-2">
+              {accounts.filter(a => a.type === "company").map(acc => {
+                const closing = calcBalance(acc);
+                const isActive = activeTab === acc.id;
+                return (
+                  <button
+                    key={acc.id}
+                    onClick={() => setActiveTab(acc.id)}
+                    className={`w-full text-left px-4 py-3 flex items-center justify-between gap-2 transition-all group ${
+                      isActive ? "bg-secondary border-r-2 border-r-accent" : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: acc.bgColor }}>
+                        <Building2 size={13} style={{ color: acc.color }} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className={`text-xs font-semibold truncate ${isActive ? "text-accent" : "text-foreground"}`}>{acc.name}</div>
+                        <div className={`text-xs font-mono mt-0.5 ${closing < 0 ? "text-red-500" : "text-emerald-600"}`}>{fmtSign(closing)}</div>
+                      </div>
+                    </div>
+                    <ChevronRight size={12} className={`flex-shrink-0 text-muted-foreground transition-transform ${isActive ? "rotate-90 text-accent" : ""}`} />
+                  </button>
+                );
+              })}
+            </nav>
+
+            <div className="px-4 py-2 border-y border-border flex items-center justify-between bg-gray-50/50">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest py-1">Overdrafts</p>
+              <button 
+                onClick={() => {
+                  setCompanyForm({ name: "", type: "overdraft", openingBalance: "", color: "#9f1239" });
+                  setShowAddCompany(true);
+                }}
+                className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200 text-muted-foreground transition-colors"
+                title="Add Overdraft"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
+
+            <nav className="py-2">
+              {accounts.filter(a => a.type === "overdraft").map(acc => {
+                const closing = calcBalance(acc);
+                const isActive = activeTab === acc.id;
+                return (
+                  <button
+                    key={acc.id}
+                    onClick={() => setActiveTab(acc.id)}
+                    className={`w-full text-left px-4 py-3 flex items-center justify-between gap-2 transition-all group ${
+                      isActive ? "bg-secondary border-r-2 border-r-accent" : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: acc.bgColor }}>
+                        <CreditCard size={13} style={{ color: acc.color }} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className={`text-xs font-semibold truncate ${isActive ? "text-accent" : "text-foreground"}`}>{acc.name}</div>
+                        <div className={`text-xs font-mono mt-0.5 ${closing < 0 ? "text-red-500" : "text-emerald-600"}`}>{fmtSign(closing)}</div>
+                      </div>
+                    </div>
+                    <ChevronRight size={12} className={`flex-shrink-0 text-muted-foreground transition-transform ${isActive ? "rotate-90 text-accent" : ""}`} />
+                  </button>
+                );
+              })}
+            </nav>
           </div>
 
-          <div className="px-4 py-2 border-b border-border flex items-center justify-between">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest py-1">Companies</p>
-            <button 
-              onClick={() => {
-                setCompanyForm({ name: "", type: "company", openingBalance: "", color: "#1e3a5f" });
-                setShowAddCompany(true);
-              }}
-              className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-100 text-muted-foreground transition-colors"
-              title="Add Company"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-
-          <nav className="py-2 flex-shrink-0">
-            {accounts.filter(a => a.type === "company").map(acc => {
-              const closing = calcBalance(acc);
-              const isActive = activeTab === acc.id;
-              return (
-                <button
-                  key={acc.id}
-                  onClick={() => setActiveTab(acc.id)}
-                  className={`w-full text-left px-4 py-3 flex items-center justify-between gap-2 transition-all group ${
-                    isActive ? "bg-secondary border-r-2 border-r-accent" : "hover:bg-gray-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: acc.bgColor }}>
-                      <Building2 size={13} style={{ color: acc.color }} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className={`text-xs font-semibold truncate ${isActive ? "text-accent" : "text-foreground"}`}>{acc.name}</div>
-                      <div className={`text-xs font-mono mt-0.5 ${closing < 0 ? "text-red-500" : "text-emerald-600"}`}>{fmtSign(closing)}</div>
-                    </div>
-                  </div>
-                  <ChevronRight size={12} className={`flex-shrink-0 text-muted-foreground transition-transform ${isActive ? "rotate-90 text-accent" : ""}`} />
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="px-4 py-2 border-y border-border flex items-center justify-between bg-gray-50/50">
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest py-1">Overdrafts</p>
-            <button 
-              onClick={() => {
-                setCompanyForm({ name: "", type: "overdraft", openingBalance: "", color: "#9f1239" });
-                setShowAddCompany(true);
-              }}
-              className="w-5 h-5 flex items-center justify-center rounded hover:bg-gray-200 text-muted-foreground transition-colors"
-              title="Add Overdraft"
-            >
-              <Plus size={14} />
-            </button>
-          </div>
-
-          <nav className="flex-1 py-2 overflow-y-auto">
-            {accounts.filter(a => a.type === "overdraft").map(acc => {
-              const closing = calcBalance(acc);
-              const isActive = activeTab === acc.id;
-              return (
-                <button
-                  key={acc.id}
-                  onClick={() => setActiveTab(acc.id)}
-                  className={`w-full text-left px-4 py-3 flex items-center justify-between gap-2 transition-all group ${
-                    isActive ? "bg-secondary border-r-2 border-r-accent" : "hover:bg-gray-50"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: acc.bgColor }}>
-                      <CreditCard size={13} style={{ color: acc.color }} />
-                    </div>
-                    <div className="min-w-0">
-                      <div className={`text-xs font-semibold truncate ${isActive ? "text-accent" : "text-foreground"}`}>{acc.name}</div>
-                      <div className={`text-xs font-mono mt-0.5 ${closing < 0 ? "text-red-500" : "text-emerald-600"}`}>{fmtSign(closing)}</div>
-                    </div>
-                  </div>
-                  <ChevronRight size={12} className={`flex-shrink-0 text-muted-foreground transition-transform ${isActive ? "rotate-90 text-accent" : ""}`} />
-                </button>
-              );
-            })}
-          </nav>
-
-
-
-          <div className="p-4 mt-auto border-t border-border bg-gray-50/50">
+          <div className="p-4 border-t border-border bg-gray-50/50 flex-shrink-0">
             <button
               onClick={handleLogout}
               className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
@@ -887,7 +1024,12 @@ export default function App() {
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto">
           {activeTab === "dashboard" ? (
-            <Dashboard accounts={accounts} onNavigate={setActiveTab} />
+            <Dashboard
+              accounts={accounts}
+              onNavigate={setActiveTab}
+              onEditTransaction={handleEditClick}
+              onDeleteTransaction={deleteTransaction}
+            />
           ) : activeAccount ? (
             <div className="p-6 space-y-5 w-full">
               {/* Account Header */}
@@ -940,7 +1082,7 @@ export default function App() {
                         setNameInput(activeAccount.name);
                       }}>
                         <h2 className="text-xl font-bold text-foreground">{activeAccount.name}</h2>
-                        <Edit3 size={14} className="text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <Edit3 size={14} className="text-gray-400 hover:text-accent transition-colors ml-1 cursor-pointer" />
                       </div>
                     )}
                     <p className="text-sm text-muted-foreground">
@@ -951,14 +1093,30 @@ export default function App() {
                     <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-700">Overdraft</span>
                   )}
                 </div>
-                <button
-                  onClick={() => setShowForm(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95"
-                  style={{ backgroundColor: activeAccount.color }}
-                >
-                  <Plus size={16} />
-                  Add Entry
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => handleEditCompanyClick(activeAccount)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-border text-xs sm:text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-gray-50 transition-colors"
+                  >
+                    <Edit3 size={14} />
+                    <span>Edit Company</span>
+                  </button>
+                  <button
+                    onClick={() => handleDeleteCompanyClick(activeAccount.id)}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-red-200 text-xs sm:text-sm font-semibold text-red-600 hover:bg-red-50 hover:border-red-100 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                    <span>Delete Company</span>
+                  </button>
+                  <button
+                    onClick={() => setShowForm(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold text-white transition-all hover:opacity-90 active:scale-95 ml-1"
+                    style={{ backgroundColor: activeAccount.color }}
+                  >
+                    <Plus size={16} />
+                    Add Entry
+                  </button>
+                </div>
               </div>
 
               {/* Balance Cards */}
@@ -1050,7 +1208,11 @@ export default function App() {
                               <div className="text-sm font-medium text-foreground">{tx.description}</div>
                               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                                 <span className="text-xs text-muted-foreground font-mono">{tx.date.split("-").reverse().join("/")}</span>
-                                {tx.reference && <span className="text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded font-mono truncate max-w-[100px]">Ref: {tx.reference}</span>}
+                                {tx.reference && (
+                                  <span className={`text-[10px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded truncate max-w-[120px] ${activeAccount.type === "company" ? "" : "font-mono"}`}>
+                                    {activeAccount.type === "company" ? `Project: ${tx.reference}` : `Ref: ${tx.reference}`}
+                                  </span>
+                                )}
                               </div>
                             </div>
                             <div className="text-right flex-shrink-0">
@@ -1075,12 +1237,22 @@ export default function App() {
                                   <span className="text-xs font-medium max-w-[150px] truncate">{tx.document.name}</span>
                                 </button>
                             ) : <div/>}
-                            <button
-                              onClick={() => deleteTransaction(tx.id)}
-                              className="p-1.5 text-muted-foreground hover:bg-red-50 hover:text-red-500 rounded-md transition-colors ml-auto"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            <div className="flex items-center gap-1.5 ml-auto">
+                              <button
+                                onClick={() => handleEditClick(tx)}
+                                className="p-1.5 text-gray-500 hover:bg-gray-100 hover:text-accent rounded-md transition-colors cursor-pointer"
+                                title="Edit Entry"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button
+                                onClick={() => deleteTransaction(tx.id)}
+                                className="p-1.5 text-gray-500 hover:bg-red-50 hover:text-red-600 rounded-md transition-colors cursor-pointer"
+                                title="Delete Entry"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -1103,7 +1275,7 @@ export default function App() {
                         <tr className="bg-gray-50 text-xs text-muted-foreground uppercase tracking-wide">
                           <th className="px-4 py-3 text-left font-semibold w-24">Date</th>
                           <th className="px-4 py-3 text-left font-semibold">Description</th>
-                          <th className="px-4 py-3 text-left font-semibold w-24">Ref. No.</th>
+                          <th className="px-4 py-3 text-left font-semibold w-24">{activeAccount.type === "company" ? "Project" : "Ref. No."}</th>
                           <th className="px-4 py-3 text-center font-semibold w-20">Doc</th>
                           <th className="px-4 py-3 text-right font-semibold w-32">Credit (₹)</th>
                           <th className="px-4 py-3 text-right font-semibold w-32">Debit (₹)</th>
@@ -1122,7 +1294,7 @@ export default function App() {
                           <tr key={tx.id} className="border-b border-border/60 hover:bg-gray-50 transition-colors group">
                             <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{tx.date.split("-").reverse().join("/")}</td>
                             <td className="px-4 py-3 text-foreground">{tx.description}</td>
-                            <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{tx.reference || "—"}</td>
+                            <td className={`px-4 py-3 text-xs text-muted-foreground ${activeAccount.type === "company" ? "" : "font-mono"}`}>{tx.reference || "—"}</td>
                             <td className="px-4 py-3 text-center">
                               {tx.document?.name ? (
                                 <div className="flex items-center justify-center gap-1">
@@ -1155,12 +1327,22 @@ export default function App() {
                               {fmt(runningBalances[i])}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <button
-                                onClick={() => deleteTransaction(tx.id)}
-                                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-red-500 transition-all"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                              <div className="flex items-center justify-center gap-2">
+                                <button
+                                  onClick={() => handleEditClick(tx)}
+                                  className="text-gray-500 hover:text-accent p-1 hover:bg-gray-100 rounded transition-colors cursor-pointer"
+                                  title="Edit Entry"
+                                >
+                                  <Edit3 size={15} />
+                                </button>
+                                <button
+                                  onClick={() => deleteTransaction(tx.id)}
+                                  className="text-gray-500 hover:text-red-600 p-1 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                  title="Delete Entry"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -1358,13 +1540,64 @@ export default function App() {
         </div>
       )}
 
+      {/* Add Project Modal */}
+      {showAddProject && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+            <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+              <h3 className="font-semibold text-lg text-foreground">Add New Project</h3>
+              <button onClick={() => setShowAddProject(false)} className="text-muted-foreground hover:bg-gray-100 p-1.5 rounded-lg transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">Project Name</label>
+                <input
+                  type="text"
+                  value={projectForm.name}
+                  onChange={e => setProjectForm({ ...projectForm, name: e.target.value })}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                  placeholder="Enter project name"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">Select Company</label>
+                <select
+                  value={projectForm.companyId}
+                  onChange={e => setProjectForm({ ...projectForm, companyId: e.target.value })}
+                  className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-accent"
+                >
+                  <option value="">Select Company</option>
+                  {accounts.filter(a => a.type === "company").map(acc => (
+                    <option key={acc.id} value={acc.id}>{acc.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 border-t border-border flex justify-end gap-3">
+              <button onClick={() => setShowAddProject(false)} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                Cancel
+              </button>
+              <button
+                onClick={addProjectAction}
+                disabled={!projectForm.name.trim() || !projectForm.companyId}
+                className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                Add Project
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Add Transaction Modal */}
       {showAddCompany && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
             <div className="px-6 py-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold text-lg text-foreground">Add New Company</h3>
-              <button onClick={() => setShowAddCompany(false)} className="text-muted-foreground hover:bg-gray-100 p-1.5 rounded-lg transition-colors">
+              <h3 className="font-semibold text-lg text-foreground">{editingCompanyId ? "Edit Company" : "Add New Company"}</h3>
+              <button onClick={() => { setShowAddCompany(false); setEditingCompanyId(null); setCompanyForm({ name: "", type: "company", openingBalance: "", color: "#1e3a5f" }); }} className="text-muted-foreground hover:bg-gray-100 p-1.5 rounded-lg transition-colors">
                 <X size={18} />
               </button>
             </div>
@@ -1404,26 +1637,26 @@ export default function App() {
               </div>
             </div>
             <div className="px-6 py-4 bg-gray-50 border-t border-border flex justify-end gap-3">
-              <button onClick={() => setShowAddCompany(false)} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+              <button onClick={() => { setShowAddCompany(false); setEditingCompanyId(null); setCompanyForm({ name: "", type: "company", openingBalance: "", color: "#1e3a5f" }); }} className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
                 Cancel
               </button>
-              <button onClick={addCompany} className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shadow-sm">
-                Add Company
+              <button onClick={saveCompany} className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors shadow-sm">
+                {editingCompanyId ? "Save Changes" : "Add Company"}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {showForm && activeAccount && (
+      {showForm && modalAccount && (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border" style={{ backgroundColor: activeAccount.bgColor }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border" style={{ backgroundColor: modalAccount.bgColor }}>
               <div>
-                <h3 className="font-bold text-base" style={{ color: activeAccount.color }}>New Entry</h3>
-                <p className="text-xs mt-0.5" style={{ color: activeAccount.color, opacity: 0.7 }}>{activeAccount.name}</p>
+                <h3 className="font-bold text-base" style={{ color: modalAccount.color }}>{editingTxId ? "Edit Entry" : "New Entry"}</h3>
+                <p className="text-xs mt-0.5" style={{ color: modalAccount.color, opacity: 0.7 }}>{modalAccount.name}</p>
               </div>
-              <button onClick={() => { setShowForm(false); setForm(f => ({ ...f, document: null })); }} className="text-muted-foreground hover:text-foreground transition-colors">
+              <button onClick={() => { setShowForm(false); setEditingTxId(null); setEditingAccountId(null); setForm({ date: today, description: "", type: "credit", amount: "", reference: "", document: null }); }} className="text-muted-foreground hover:text-foreground transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -1488,18 +1721,36 @@ export default function App() {
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">
-                  Reference No. <span className="font-normal text-muted-foreground/60">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={form.reference}
-                  onChange={e => setForm(f => ({ ...f, reference: e.target.value }))}
-                  placeholder="INV-001, PO-012..."
-                  className="w-full border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-input-background"
-                />
-              </div>
+              {modalAccount.type === "company" ? (
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">
+                    Project <span className="font-normal text-muted-foreground/60">(optional)</span>
+                  </label>
+                  <select
+                    value={form.reference}
+                    onChange={e => setForm(f => ({ ...f, reference: e.target.value }))}
+                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-input-background"
+                  >
+                    <option value="">Select Project</option>
+                    {(modalAccount.projects || []).map((proj: string) => (
+                      <option key={proj} value={proj}>{proj}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide block mb-1.5">
+                    Reference No. <span className="font-normal text-muted-foreground/60">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.reference}
+                    onChange={e => setForm(f => ({ ...f, reference: e.target.value }))}
+                    placeholder="INV-001, PO-012..."
+                    className="w-full border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-input-background"
+                  />
+                </div>
+              )}
 
               {/* Document Upload */}
               <div>
@@ -1516,7 +1767,7 @@ export default function App() {
                 {form.document ? (
                   <div className="flex items-center gap-3 border border-border rounded-lg px-3 py-2.5 bg-input-background">
                     <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                      {form.document.mimeType.startsWith("image/")
+                      {form.document.mimeType?.startsWith("image/")
                         ? <Image size={15} className="text-blue-500" />
                         : <FileText size={15} className="text-blue-500" />}
                     </div>
@@ -1547,7 +1798,7 @@ export default function App() {
               {form.amount && (
                 <div className={`rounded-lg px-4 py-3 text-sm flex items-center justify-between ${form.type === "credit" ? "bg-emerald-50" : "bg-red-50"}`}>
                   <span className={form.type === "credit" ? "text-emerald-700" : "text-red-600"}>
-                    {form.type === "credit" ? "Adding Credit" : "Adding Debit"}
+                    {editingTxId ? (form.type === "credit" ? "Updating Credit" : "Updating Debit") : (form.type === "credit" ? "Adding Credit" : "Adding Debit")}
                   </span>
                   <span className={`font-mono font-bold ${form.type === "credit" ? "text-emerald-700" : "text-red-600"}`}>
                     {form.type === "credit" ? "+" : "-"}₹{parseFloat(form.amount || "0").toLocaleString("en-IN", { minimumFractionDigits: 2 })}
@@ -1557,16 +1808,49 @@ export default function App() {
             </div>
 
             <div className="px-6 pb-6 flex gap-3">
-              <button onClick={() => { setShowForm(false); setForm(f => ({ ...f, document: null })); }} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-semibold text-foreground hover:bg-gray-50 transition-colors">
+              <button onClick={() => { setShowForm(false); setEditingTxId(null); setEditingAccountId(null); setForm({ date: today, description: "", type: "credit", amount: "", reference: "", document: null }); }} className="flex-1 py-2.5 rounded-lg border border-border text-sm font-semibold text-foreground hover:bg-gray-50 transition-colors">
                 Cancel
               </button>
               <button
                 onClick={addTransaction}
                 disabled={!form.description || !form.amount}
                 className="flex-1 py-2.5 rounded-lg text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed"
-                style={{ backgroundColor: activeAccount.color }}
+                style={{ backgroundColor: modalAccount.color }}
               >
-                Save Entry
+                {editingTxId ? "Update Entry" : "Save Entry"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmModal && confirmModal.show && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm mx-4 overflow-hidden border border-border p-6 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                <Trash2 size={20} className="text-red-500" />
+              </div>
+              <div>
+                <h3 className="font-bold text-base text-foreground">{confirmModal.title}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">Action is irreversible</p>
+              </div>
+            </div>
+            <p className="text-sm text-slate-600 leading-relaxed">
+              {confirmModal.message}
+            </p>
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 py-2.5 rounded-lg border border-border text-xs sm:text-sm font-semibold text-foreground hover:bg-gray-50 transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmModal.onConfirm}
+                className="flex-1 py-2.5 rounded-lg text-xs sm:text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-all cursor-pointer"
+              >
+                {confirmModal.confirmText || "Confirm"}
               </button>
             </div>
           </div>

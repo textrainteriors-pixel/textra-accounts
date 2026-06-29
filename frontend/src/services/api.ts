@@ -1,6 +1,7 @@
 import { authService } from './authService';
 
 const API_URL = 'https://textra-accounts.onrender.com/api/accounts';
+// const API_URL = 'http://localhost:5000/api/accounts';
 
 const getAuthHeaders = (): Record<string, string> => {
   const user = authService.getCurrentUser();
@@ -42,7 +43,26 @@ export const accountService = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ name }),
     });
+    if (!response.ok) throw new Error('Failed to update account name');
+    return response.json();
+  },
+
+  updateAccount: async (id: string, accountData: any) => {
+    const response = await fetch(`${API_URL}/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(accountData),
+    });
     if (!response.ok) throw new Error('Failed to update account');
+    return response.json();
+  },
+
+  deleteAccount: async (id: string) => {
+    const response = await fetch(`${API_URL}/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to delete account');
     return response.json();
   },
 
@@ -81,6 +101,26 @@ export const accountService = {
       headers: getAuthHeaders()
     });
     if (!response.ok) throw new Error('Failed to delete transaction');
+    return response.json();
+  },
+
+  updateTransaction: async (accountId: string, txId: string, transaction: any) => {
+    const response = await fetch(`${API_URL}/${accountId}/transactions/${txId}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(transaction)
+    });
+    if (!response.ok) throw new Error('Failed to update transaction');
+    return response.json();
+  },
+
+  addProject: async (accountId: string, projectName: string) => {
+    const response = await fetch(`${API_URL}/${accountId}/projects`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ projectName }),
+    });
+    if (!response.ok) throw new Error('Failed to add project');
     return response.json();
   }
 };

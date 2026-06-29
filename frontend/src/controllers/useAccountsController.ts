@@ -77,12 +77,58 @@ export const useAccountsController = (isAuthenticated: boolean) => {
     }
   };
 
+  const addProject = async (accountId: string, projectName: string) => {
+    try {
+      if (!projectName.trim()) return;
+      const updatedProjects = await accountService.addProject(accountId, projectName);
+      setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, projects: updatedProjects } : a));
+    } catch (error) {
+      console.error("Failed to add project", error);
+    }
+  };
+
+  const editTransaction = async (accountId: string, txId: string, transaction: any) => {
+    try {
+      const updatedTx = await accountService.updateTransaction(accountId, txId, transaction);
+      setAccounts(prev => prev.map(a =>
+        a.id === accountId ? {
+          ...a,
+          transactions: a.transactions.map((t: any) => t.id === txId ? updatedTx : t)
+        } : a
+      ));
+    } catch (error) {
+      console.error("Failed to edit transaction", error);
+    }
+  };
+
+  const editAccount = async (accountId: string, accountData: any) => {
+    try {
+      const updatedAccount = await accountService.updateAccount(accountId, accountData);
+      setAccounts(prev => prev.map(a => a.id === accountId ? { ...a, ...updatedAccount } : a));
+    } catch (error) {
+      console.error("Failed to update account", error);
+    }
+  };
+
+  const deleteAccount = async (accountId: string) => {
+    try {
+      await accountService.deleteAccount(accountId);
+      setAccounts(prev => prev.filter(a => a.id !== accountId));
+    } catch (error) {
+      console.error("Failed to delete account", error);
+    }
+  };
+
   return {
     accounts,
     loading,
     addAccount,
+    editAccount,
+    deleteAccount,
     editAccountName,
+    addProject,
     addTransaction,
+    editTransaction,
     deleteTransaction,
     saveOpeningBalance
   };
