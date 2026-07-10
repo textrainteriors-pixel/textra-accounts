@@ -124,3 +124,44 @@ export const accountService = {
     return response.json();
   }
 };
+
+export const reminderService = {
+  getReminders: async () => {
+    const url = API_URL.replace('/accounts', '/reminders');
+    const response = await fetch(url, { headers: getAuthHeaders() });
+    if (!response.ok) throw new Error('Failed to fetch reminders');
+    return response.json();
+  },
+
+  createReminder: async (reminderData: { text: string; date: string }) => {
+    const url = API_URL.replace('/accounts', '/reminders');
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(reminderData),
+    });
+    if (!response.ok) throw new Error('Failed to create reminder');
+    return response.json();
+  },
+
+  updateReminder: async (id: string, reminderData: { text?: string; date?: string; completed?: boolean }) => {
+    const url = API_URL.replace('/accounts', '/reminders');
+    const response = await fetch(`${url}/${id}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(reminderData),
+    });
+    if (!response.ok) throw new Error('Failed to update reminder');
+    return response.json();
+  },
+
+  deleteReminder: async (id: string) => {
+    const url = API_URL.replace('/accounts', '/reminders');
+    const response = await fetch(`${url}/${id}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
+    if (!response.ok) throw new Error('Failed to delete reminder');
+    return response.json();
+  },
+};

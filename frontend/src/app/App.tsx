@@ -4,7 +4,7 @@ import {
   Plus, Trash2, TrendingUp, TrendingDown, BarChart3, Building2,
   CreditCard, ChevronRight, X, Edit3, LayoutDashboard, ArrowUpRight,
   ArrowDownRight, Wallet, Activity, FileText, Image,
-  Download, Upload, FileDown, Check, LogOut, Menu
+  Download, Upload, FileDown, Check, LogOut, Menu, Bell, CalendarDays, Clock, Trash
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -14,6 +14,7 @@ import {
 } from "recharts";
 
 import { authService } from "../services/authService";
+import { reminderService } from "../services/api";
 import Login from "./Login";
 
 type TransactionType = "credit" | "debit";
@@ -355,11 +356,17 @@ function generateMonthlyPDF(accounts: Account[], month: number, year: number) {
 // ─── Dashboard Page ────────────────────────────────────────────────────────────
 function Dashboard({
   accounts,
+  reminders = [],
+  onDeleteReminder,
+  onToggleCompleteReminder,
   onNavigate,
   onEditTransaction,
   onDeleteTransaction,
 }: {
   accounts: Account[];
+  reminders?: any[];
+  onDeleteReminder: (id: string) => void;
+  onToggleCompleteReminder: (id: string, completed: boolean) => void;
   onNavigate: (id: string) => void;
   onEditTransaction: (tx: any, accountId: string) => void;
   onDeleteTransaction: (txId: string, accountId: string) => void;
@@ -424,6 +431,9 @@ function Dashboard({
     },
   ];
 
+  const todayStr = new Date().toISOString().split("T")[0];
+  const todayReminders = reminders.filter(r => r.date === todayStr && !r.completed);
+
   return (
     <div className="p-6 space-y-6 w-full">
       {/* Page title */}
@@ -433,6 +443,59 @@ function Dashboard({
           Overview of all accounts — {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
         </p>
       </div>
+
+      {/* Today's Reminders */}
+      {todayReminders.length > 0 && (
+        <div className="bg-white border border-border rounded-2xl overflow-hidden shadow-sm">
+          {/* Header bar */}
+          <div className="flex items-center justify-between px-5 py-3.5" style={{ backgroundColor: "#1e3a5f" }}>
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center">
+                <Bell size={14} className="text-white" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white tracking-tight">Today's Reminders</h4>
+                <p className="text-[10px] text-white/60">Tasks scheduled for today</p>
+              </div>
+            </div>
+            <span className="inline-flex items-center justify-center w-6 h-6 rounded-full text-[11px] font-bold text-primary" style={{ backgroundColor: "#e8edf5" }}>
+              {todayReminders.length}
+            </span>
+          </div>
+          {/* Reminder list */}
+          <div className="divide-y divide-border/60">
+            {todayReminders.map((r, idx) => (
+              <div
+                key={r.id}
+                className="flex items-start gap-3 px-5 py-3.5 hover:bg-secondary/60 transition-colors group"
+              >
+                {/* Index number */}
+                <span
+                  className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white mt-0.5"
+                  style={{ backgroundColor: "#1e3a5f" }}
+                >
+                  {idx + 1}
+                </span>
+                <p
+                  className="flex-1 text-sm font-medium text-foreground break-words whitespace-normal text-left min-w-0 pr-2"
+                  style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
+                >
+                  {r.text}
+                </p>
+                <button
+                  onClick={() => onToggleCompleteReminder(r.id, true)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-white transition-all flex-shrink-0 hover:bg-blue-700 active:scale-95 mt-0.5"
+                  style={{ backgroundColor: "#2563eb" }}
+                  title="Mark as Done"
+                >
+                  <Check size={12} />
+                  Done
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -644,11 +707,213 @@ function Dashboard({
   );
 }
 
+// ─── Reminders Page ─────────────────────────────────────────────────────────────
+function RemindersPage({
+  reminders,
+  onAdd,
+  onDelete,
+  onToggleComplete,
+}: {
+  reminders: any[];
+  onAdd: () => void;
+  onDelete: (id: string) => void;
+  onToggleComplete: (id: string, completed: boolean) => void;
+}) {
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const upcoming = reminders
+    .filter(r => r.date >= todayStr && !r.completed)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const past = reminders
+    .filter(r => r.date < todayStr || r.completed)
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  return (
+    <div className="p-6 space-y-6 w-full max-w-5xl mx-auto">
+      {/* ── Page Header ── */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Reminders</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">Stay on top of your financial tasks</p>
+        </div>
+        <button
+          onClick={onAdd}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"
+          style={{ backgroundColor: "#1e3a5f" }}
+        >
+          <Plus size={15} />
+          New Reminder
+        </button>
+      </div>
+
+      {reminders.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-center bg-white border border-border rounded-xl shadow-sm">
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4 bg-gray-50">
+            <Bell size={24} className="text-muted-foreground" />
+          </div>
+          <h3 className="font-semibold text-foreground text-base">No reminders yet</h3>
+          <p className="text-sm text-muted-foreground mt-1 mb-5 max-w-xs">
+            Set a reminder and it will appear on your dashboard on the scheduled date.
+          </p>
+          <button
+            onClick={onAdd}
+            className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white"
+            style={{ backgroundColor: "#1e3a5f" }}
+          >
+            <Plus size={15} /> Create First Reminder
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {/* ── Stats Row ── */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Total Reminders", value: reminders.length, color: "#1e3a5f" },
+              { label: "Due Today", value: reminders.filter((r: any) => r.date === todayStr && !r.completed).length, color: "#2563eb" },
+              { label: "Upcoming", value: upcoming.filter((r: any) => r.date > todayStr).length, color: "#059669" },
+            ].map(s => (
+              <div key={s.label} className="bg-white rounded-xl border border-border p-4 shadow-sm">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.label}</p>
+                <p className="text-2xl font-extrabold mt-1 font-mono" style={{ color: s.color }}>{s.value}</p>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Scheduled (Upcoming + Today) — 2-col grid ── */}
+          {upcoming.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <CalendarDays size={15} className="text-muted-foreground" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Scheduled Reminders
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-muted-foreground">
+                  {upcoming.length}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {upcoming.map((r: any) => {
+                  const isToday = r.date === todayStr;
+                  const d = new Date(r.date + "T00:00:00");
+                  return (
+                    <div
+                      key={r.id}
+                      className="bg-white rounded-xl border border-border p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-all gap-3"
+                      style={{ borderLeft: `4px solid ${isToday ? "#2563eb" : "#e2e8f0"}` }}
+                    >
+                      <div className="flex flex-col gap-3 h-full justify-between">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="space-y-1.5 flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {isToday ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600">Today</span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600">Upcoming</span>
+                              )}
+                              <span className="text-xs font-semibold text-muted-foreground">
+                                {d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                              </span>
+                            </div>
+                            <p
+                              className="text-sm font-medium text-foreground leading-relaxed break-words"
+                              style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
+                            >
+                              {r.text}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => onDelete(r.id)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                            title="Delete Reminder"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                        <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-1">
+                          <button
+                            onClick={() => onToggleComplete(r.id, true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-50 transition-colors"
+                          >
+                            <Check size={14} />
+                            Mark as Done
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Completed — List ── */}
+          {past.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Clock size={15} className="text-muted-foreground" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Completed / Past</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-muted-foreground">
+                  {past.length}
+                </span>
+              </div>
+              <div className="bg-white rounded-xl border border-border divide-y divide-border overflow-hidden shadow-sm">
+                {past.map((r: any) => {
+                  const d = new Date(r.date + "T00:00:00");
+                  return (
+                    <div key={r.id} className="p-4 flex flex-col gap-2.5 hover:bg-gray-50 transition-colors">
+                      {/* Top: Date */}
+                      <div className="text-xs text-muted-foreground font-semibold">
+                        {d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                      </div>
+
+                      {/* Middle: Content */}
+                      <p
+                        className="text-sm text-foreground break-words text-left leading-relaxed min-w-0"
+                        style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
+                      >
+                        {r.text}
+                      </p>
+
+                      {/* Bottom: Done status & Delete button */}
+                      <div className="flex items-center justify-between mt-1 pt-2.5 border-t border-gray-100/80">
+                        <div>
+                          {r.completed && (
+                            <span className="text-emerald-600 text-xs font-bold flex items-center gap-1">
+                              <Check size={13} /> Done
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => onDelete(r.id)}
+                          className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                          title="Delete Reminder"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
 // ─── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(!!authService.getCurrentUser());
   const { accounts, loading, addTransaction: handleAddTx, editTransaction, deleteTransaction: handleDelTx, saveOpeningBalance: handleSaveBal, addAccount: handleAddAccount, editAccount, deleteAccount, editAccountName, addProject } = useAccountsController(isAuthenticated);
   const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [reminders, setReminders] = useState<any[]>([]);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderForm, setReminderForm] = useState({ text: "", date: today });
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
     title: string;
@@ -841,6 +1106,56 @@ export default function App() {
   const totalNetBalance = accounts.reduce((s, a) => s + calcBalance(a), 0);
   const totalOpeningBalance = accounts.reduce((s, a) => s + a.openingBalance, 0);
 
+  const fetchReminders = async () => {
+    try {
+      const data = await reminderService.getReminders();
+      setReminders(data);
+    } catch (err) {
+      console.error("Failed to fetch reminders", err);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchReminders();
+    } else {
+      setReminders([]);
+    }
+  }, [isAuthenticated]);
+
+  const saveReminder = async () => {
+    if (!reminderForm.text.trim() || !reminderForm.date) return;
+    try {
+      const newReminder = await reminderService.createReminder({
+        text: reminderForm.text.trim(),
+        date: reminderForm.date
+      });
+      setReminders(prev => [...prev, newReminder]);
+      setShowReminderModal(false);
+      setReminderForm({ text: "", date: today });
+    } catch (err) {
+      console.error("Failed to save reminder", err);
+    }
+  };
+
+  const dismissReminder = async (id: string) => {
+    try {
+      await reminderService.deleteReminder(id);
+      setReminders(prev => prev.filter(r => r.id !== id));
+    } catch (err) {
+      console.error("Failed to delete reminder", err);
+    }
+  };
+
+  const toggleReminderComplete = async (id: string, completed: boolean) => {
+    try {
+      const updated = await reminderService.updateReminder(id, { completed });
+      setReminders(prev => prev.map(r => r.id === id ? { ...r, completed: updated.completed } : r));
+    } catch (err) {
+      console.error("Failed to update reminder status", err);
+    }
+  };
+
   const handleLogout = () => {
     authService.logout();
     setIsAuthenticated(false);
@@ -882,6 +1197,21 @@ export default function App() {
             <span> Project</span>
           </button>
           <button
+            onClick={() => {
+              setActiveTab("reminders");
+              setMobileMenuOpen(false);
+            }}
+            className="relative flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-semibold transition-all"
+          >
+            <Bell size={16} />
+            <span>Reminders</span>
+            {reminders.filter(r => r.date === today).length > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {reminders.filter(r => r.date === today).length}
+              </span>
+            )}
+          </button>
+          <button
             onClick={() => setShowReport(true)}
             className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-white/15 hover:bg-white/25 text-white text-xs sm:text-sm font-semibold transition-all"
           >
@@ -912,10 +1242,10 @@ export default function App() {
         <aside className={`${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 transition-transform duration-300 ease-in-out absolute md:relative z-30 h-full w-64 md:w-56 bg-white border-r border-border flex flex-col flex-shrink-0`}>
           {/* Scrollable Navigation Area */}
           <div className="flex-1 overflow-y-auto flex flex-col">
-            {/* Dashboard link */}
+            {/* Dashboard & Reminders links */}
             <div className="px-4 py-3 border-b border-border flex flex-col gap-2">
               <button
-                onClick={() => setActiveTab("dashboard")}
+                onClick={() => { setActiveTab("dashboard"); setMobileMenuOpen(false); }}
                 className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
                   activeTab === "dashboard"
                     ? "bg-accent text-white"
@@ -924,6 +1254,27 @@ export default function App() {
               >
                 <LayoutDashboard size={15} />
                 Dashboard
+              </button>
+              <button
+                onClick={() => { setActiveTab("reminders"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activeTab === "reminders"
+                    ? "bg-accent text-white"
+                    : "text-muted-foreground hover:bg-gray-50 hover:text-foreground"
+                }`}
+              >
+                <Bell size={15} />
+                Reminders
+                {reminders.length > 0 && (
+                  <span
+                    className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                      activeTab === "reminders" ? "bg-white/25 text-white" : "text-primary"
+                    }`}
+                    style={activeTab !== "reminders" ? { backgroundColor: "#e8edf5" } : {}}
+                  >
+                    {reminders.length}
+                  </span>
+                )}
               </button>
             </div>
 
@@ -1026,9 +1377,22 @@ export default function App() {
           {activeTab === "dashboard" ? (
             <Dashboard
               accounts={accounts}
+              reminders={reminders}
+              onDeleteReminder={dismissReminder}
+              onToggleCompleteReminder={toggleReminderComplete}
               onNavigate={setActiveTab}
               onEditTransaction={handleEditClick}
               onDeleteTransaction={deleteTransaction}
+            />
+          ) : activeTab === "reminders" ? (
+            <RemindersPage
+              reminders={reminders}
+              onAdd={() => {
+                setReminderForm({ text: "", date: today });
+                setShowReminderModal(true);
+              }}
+              onDelete={dismissReminder}
+              onToggleComplete={toggleReminderComplete}
             />
           ) : activeAccount ? (
             <div className="p-6 space-y-5 w-full">
@@ -1851,6 +2215,90 @@ export default function App() {
                 className="flex-1 py-2.5 rounded-lg text-xs sm:text-sm font-semibold text-white bg-red-600 hover:bg-red-700 transition-all cursor-pointer"
               >
                 {confirmModal.confirmText || "Confirm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Add Reminder Modal */}
+      {showReminderModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md mx-4 overflow-hidden border border-border">
+            {/* Modal header — matches app primary */}
+            <div className="px-6 py-5 flex items-center justify-between" style={{ backgroundColor: "#1e3a5f" }}>
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
+                  <Bell size={18} className="text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-base leading-tight">Set a Reminder</h3>
+                  <p className="text-white/55 text-[11px] mt-0.5">It will appear on the dashboard on the selected date</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowReminderModal(false)}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X size={17} />
+              </button>
+            </div>
+
+            {/* Form */}
+            <div className="p-6 space-y-5">
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">What to remind?</label>
+                <input
+                  type="text"
+                  value={reminderForm.text}
+                  onChange={e => setReminderForm({ ...reminderForm, text: e.target.value })}
+                  className="w-full border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 bg-input-background placeholder:text-muted-foreground/50"
+                  style={{ "--tw-ring-color": "#1e3a5f40" } as any}
+                  placeholder="e.g. Review monthly budget report…"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-2">Remind me on</label>
+                <input
+                  type="date"
+                  value={reminderForm.date}
+                  onChange={e => setReminderForm({ ...reminderForm, date: e.target.value })}
+                  className="w-full border border-border rounded-xl px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 bg-input-background"
+                  style={{ "--tw-ring-color": "#1e3a5f40" } as any}
+                />
+              </div>
+
+              {/* Preview pill */}
+              {reminderForm.text && reminderForm.date && (
+                <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl border" style={{ backgroundColor: "#e8edf5", borderColor: "#c8d5e8" }}>
+                  <Bell size={13} style={{ color: "#1e3a5f" }} className="flex-shrink-0 mt-0.5" />
+                  <p
+                    className="text-xs font-medium break-words flex-1 whitespace-normal"
+                    style={{ color: "#1e3a5f", wordBreak: "break-word", overflowWrap: "anywhere" }}
+                  >
+                    <span className="font-bold">"{reminderForm.text}"</span>{" "}
+                    on {new Date(reminderForm.date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 pb-6 flex gap-3">
+              <button
+                onClick={() => setShowReminderModal(false)}
+                className="flex-1 py-2.5 rounded-xl border border-border text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={saveReminder}
+                disabled={!reminderForm.text.trim() || !reminderForm.date}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                style={{ backgroundColor: "#1e3a5f" }}
+              >
+                Save Reminder
               </button>
             </div>
           </div>

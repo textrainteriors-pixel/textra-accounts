@@ -19,11 +19,13 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 import authRoutes from './routes/authRoutes.js';
+import reminderRoutes from './routes/reminderRoutes.js';
 import { protect } from './middleware/authMiddleware.js';
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/accounts', protect, accountRoutes);
+app.use('/api/reminders', reminderRoutes);
 
 // Basic Route
 app.get('/', (req, res) => {
