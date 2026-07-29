@@ -822,71 +822,96 @@ function RemindersPage({
     .filter(r => r.completed || (r.date < todayStr && !r.repeatMonthly))
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  const renderCard = (r: any, badgeText?: string, badgeBg?: string, badgeColor?: string) => {
-    const isToday = r.date === todayStr;
-    const d = new Date(r.date + "T00:00:00");
+  const renderTable = (items: any[], defaultBadgeText?: string) => {
+    if (items.length === 0) return null;
 
     return (
-      <div
-        key={r.id}
-        className="bg-white rounded-2xl border border-slate-200 p-4.5 flex flex-col justify-between shadow-xs hover:shadow-md transition-all gap-3 overflow-hidden"
-      >
-        <div className="flex flex-col gap-3 h-full justify-between">
-          <div className="flex items-start justify-between gap-4">
-            <div className="space-y-1.5 flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                {isToday ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600">Today</span>
-                ) : badgeText && badgeText !== "Monthly" ? (
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeBg || "bg-emerald-50"} ${badgeColor || "text-emerald-600"}`}>{badgeText}</span>
-                ) : !r.repeatMonthly ? (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600">Upcoming</span>
-                ) : null}
-                {r.repeatMonthly && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center gap-1">
-                    <Repeat size={10} /> Monthly
-                  </span>
-                )}
-                <span className="text-xs font-semibold text-muted-foreground">
-                  {d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
-                </span>
-              </div>
-              <p
-                className="text-sm font-medium text-foreground leading-relaxed break-words pt-1"
-                style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
-              >
-                {r.text}
-              </p>
-            </div>
-            <button
-              onClick={() => onDelete(r.id)}
-              className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-              title="Delete Reminder"
-            >
-              <Trash2 size={15} />
-            </button>
-          </div>
-          <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1 gap-2 flex-wrap">
-            <button
-              onClick={() => onToggleComplete(r.id, true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-50 active:scale-95 transition-all"
-            >
-              <Check size={14} />
-              Mark as Done
-            </button>
-            <button
-              onClick={() => onToggleRepeatMonthly(r.id, !!r.repeatMonthly)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                r.repeatMonthly
-                  ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
-                  : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-700"
-              }`}
-              title={r.repeatMonthly ? "Click to turn off monthly repeat" : "Click to enable monthly repeat"}
-            >
-              <Repeat size={12} className={r.repeatMonthly ? "text-indigo-600" : "opacity-60"} />
-              {r.repeatMonthly ? "Monthly Repeat: ON" : "Repeat Monthly?"}
-            </button>
-          </div>
+      <div className="bg-white rounded-xl border border-slate-300 overflow-hidden shadow-sm">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead>
+              <tr className="bg-slate-100/90 border-b-2 border-slate-300 text-xs font-bold text-slate-700 uppercase tracking-wider">
+                <th className="py-3 px-4 border-r border-slate-200">Task / Description</th>
+                <th className="py-3 px-4 border-r border-slate-200">Scheduled Date</th>
+                <th className="py-3 px-4 border-r border-slate-200">Repeat Option</th>
+                <th className="py-3 px-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {items.map(r => {
+                const isToday = r.date === todayStr;
+                const d = new Date(r.date + "T00:00:00");
+                return (
+                  <tr key={r.id} className="hover:bg-slate-50 transition-colors">
+                    {/* Task Description & Badges */}
+                    <td className="py-3.5 px-4 font-medium text-slate-900 border-r border-slate-200">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="text-sm font-bold text-slate-900 break-words">{r.text}</span>
+                        {isToday ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-700 border border-blue-200">
+                            Today
+                          </span>
+                        ) : defaultBadgeText && defaultBadgeText !== "Monthly" ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            {defaultBadgeText}
+                          </span>
+                        ) : !r.repeatMonthly ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            Upcoming
+                          </span>
+                        ) : null}
+                        {r.repeatMonthly && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
+                            <Repeat size={10} /> Monthly
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* Scheduled Date */}
+                    <td className="py-3.5 px-4 text-xs font-bold text-slate-700 whitespace-nowrap border-r border-slate-200">
+                      {d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                    </td>
+
+                    {/* Monthly Repeat Toggle */}
+                    <td className="py-3.5 px-4 whitespace-nowrap border-r border-slate-200">
+                      <button
+                        onClick={() => onToggleRepeatMonthly(r.id, !!r.repeatMonthly)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all border ${
+                          r.repeatMonthly
+                            ? "bg-indigo-100 text-indigo-900 border-indigo-300 hover:bg-indigo-200"
+                            : "bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200 hover:text-slate-900"
+                        }`}
+                        title={r.repeatMonthly ? "Click to turn off monthly repeat" : "Click to enable monthly repeat"}
+                      >
+                        <Repeat size={12} className={r.repeatMonthly ? "text-indigo-700" : "opacity-70"} />
+                        {r.repeatMonthly ? "Monthly Repeat: ON" : "Repeat Monthly?"}
+                      </button>
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          onClick={() => onToggleComplete(r.id, true)}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all shadow-xs"
+                        >
+                          <Check size={13} /> Mark Done
+                        </button>
+                        <button
+                          onClick={() => onDelete(r.id)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                          title="Delete Reminder"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     );
@@ -977,10 +1002,10 @@ function RemindersPage({
             ))}
           </div>
 
-          {/* ── 2-Part Split Layout (for All, Today, Upcoming, Monthly sub-tabs) ── */}
+          {/* ── Active Reminders Section (for All, Today, Upcoming, Monthly sub-tabs) ── */}
           {(subTab === "all" || subTab === "today" || subTab === "upcoming" || subTab === "monthly") && (
-            <div className={`grid grid-cols-1 ${subTab === "all" ? "lg:grid-cols-2" : "grid-cols-1"} gap-6 items-start`}>
-              {/* ── LEFT SIDE: UPCOMING REMINDERS (Due Today + Upcoming) ── */}
+            <div className="grid grid-cols-1 gap-6 items-start">
+              {/* ── UPCOMING REMINDERS (Shown for All, Today, Upcoming) ── */}
               {(subTab === "all" || subTab === "today" || subTab === "upcoming") && (
                 <div className="space-y-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-200/80">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -1013,9 +1038,7 @@ function RemindersPage({
                           <p className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
                             <Bell size={12} /> Due Today ({todayList.length})
                           </p>
-                          <div className="space-y-3">
-                            {todayList.map(r => renderCard(r, "Today", "bg-blue-50", "text-blue-600"))}
-                          </div>
+                          {renderTable(todayList, "Today")}
                         </div>
                       )}
 
@@ -1027,9 +1050,7 @@ function RemindersPage({
                               Upcoming One-Time ({upcomingList.length})
                             </p>
                           )}
-                          <div className="space-y-3">
-                            {upcomingList.map(r => renderCard(r, "Upcoming", "bg-emerald-50", "text-emerald-600"))}
-                          </div>
+                          {renderTable(upcomingList, "Upcoming")}
                         </div>
                       )}
                     </div>
@@ -1037,8 +1058,8 @@ function RemindersPage({
                 </div>
               )}
 
-              {/* ── RIGHT SIDE: MONTHLY RECURRING REMINDERS ── */}
-              {(subTab === "all" || subTab === "monthly") && (
+              {/* ── MONTHLY RECURRING REMINDERS (Shown only under Monthly Reminders tab) ── */}
+              {subTab === "monthly" && (
                 <div className="space-y-4 bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100">
                   <div className="flex items-center justify-between pb-3 border-b border-indigo-100">
                     <div className="flex items-center gap-2">
@@ -1063,9 +1084,7 @@ function RemindersPage({
                       No monthly recurring reminders set yet. Click "New Monthly" to add one.
                     </div>
                   ) : (
-                    <div className="space-y-3">
-                      {monthlyList.map(r => renderCard(r, "Monthly", "bg-indigo-50", "text-indigo-700"))}
-                    </div>
+                    renderTable(monthlyList, "Monthly")
                   )}
                 </div>
               )}
