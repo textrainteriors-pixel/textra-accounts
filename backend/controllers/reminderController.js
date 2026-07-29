@@ -4,13 +4,27 @@ import Reminder from '../models/Reminder.js';
 // @route   GET /api/reminders
 export const getReminders = async (req, res) => {
   try {
+    // Clean up any legacy duplicate completed records for active monthly repeating reminders
+    const activeMonthlyReminders = await Reminder.find({ user: req.user._id, repeatMonthly: true, completed: false });
+    const activeMonthlyTexts = activeMonthlyReminders.map(r => r.text);
+    if (activeMonthlyTexts.length > 0) {
+      await Reminder.deleteMany({
+        user: req.user._id,
+        repeatMonthly: true,
+        completed: true,
+        text: { $in: activeMonthlyTexts }
+      });
+    }
+
     const reminders = await Reminder.find({ user: req.user._id });
-    // Map _id to id for frontend consistency if needed
+
+    // Format response
     const formattedReminders = reminders.map(r => ({
       id: r._id,
       text: r.text,
       date: r.date,
       completed: r.completed || false,
+      repeatMonthly: r.repeatMonthly || false,
       createdAt: r.createdAt
     }));
     res.json(formattedReminders);
@@ -23,7 +37,7 @@ export const getReminders = async (req, res) => {
 // @route   POST /api/reminders
 export const createReminder = async (req, res) => {
   try {
-    const { text, date } = req.body;
+    const { text, date, repeatMonthly } = req.body;
 
     if (!text || !date) {
       return res.status(400).json({ message: 'Please provide all fields' });
@@ -32,7 +46,8 @@ export const createReminder = async (req, res) => {
     const reminder = await Reminder.create({
       text,
       date,
-      user: req.user._id
+      user: req.user._id,
+      repeatMonthly: Boolean(repeatMonthly)
     });
 
     res.status(201).json({
@@ -40,6 +55,7 @@ export const createReminder = async (req, res) => {
       text: reminder.text,
       date: reminder.date,
       completed: reminder.completed || false,
+      repeatMonthly: reminder.repeatMonthly || false,
       createdAt: reminder.createdAt
     });
   } catch (error) {
@@ -62,19 +78,58 @@ export const updateReminder = async (req, res) => {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    const { text, date, completed } = req.body;
+    const { text, date, completed, repeatMonthly } = req.body;
     if (text !== undefined) reminder.text = text;
     if (date !== undefined) reminder.date = date;
-    if (completed !== undefined) reminder.completed = completed;
+    if (repeatMonthly !== undefined) reminder.repeatMonthly = repeatMonthly;
 
-    const updatedReminder = await reminder.save();
+    if (completed !== undefined) {
+      const wasCompletedBefore = reminder.completed;
+
+      // If marking as completed and it's a monthly repeating reminder, advance date to next month directly
+      if (completed && !wasCompletedBefore && reminder.repeatMonthly) {
+        const parts = reminder.date.split('-');
+        if (parts.length === 3) {
+          let year = parseInt(parts[0], 10);
+          let month = parseInt(parts[1], 10); // 1-12
+          let day = parseInt(parts[2], 10);
+
+          month += 1;
+          if (month > 12) {
+            month = 1;
+            year += 1;
+          }
+
+          const daysInNextMonth = new Date(year, month, 0).getDate();
+          if (day > daysInNextMonth) {
+            day = daysInNextMonth;
+          }
+
+          reminder.date = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          reminder.completed = false; // Reset completion for the new month
+
+          // Delete any legacy duplicate completed records for this monthly reminder
+          await Reminder.deleteMany({
+            user: req.user._id,
+            text: reminder.text,
+            repeatMonthly: true,
+            completed: true
+          });
+        }
+      } else {
+        reminder.completed = completed;
+      }
+    }
+
+    await reminder.save();
 
     res.json({
-      id: updatedReminder._id,
-      text: updatedReminder.text,
-      date: updatedReminder.date,
-      completed: updatedReminder.completed,
-      createdAt: updatedReminder.createdAt
+      id: reminder._id,
+      text: reminder.text,
+      date: reminder.date,
+      completed: reminder.completed,
+      repeatMonthly: reminder.repeatMonthly,
+      createdAt: reminder.createdAt
     });
   } catch (error) {
     res.status(500).json({ message: error.message });

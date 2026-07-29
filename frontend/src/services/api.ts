@@ -133,7 +133,7 @@ export const reminderService = {
     return response.json();
   },
 
-  createReminder: async (reminderData: { text: string; date: string }) => {
+  createReminder: async (reminderData: { text: string; date: string; repeatMonthly?: boolean }) => {
     const url = API_URL.replace('/accounts', '/reminders');
     const response = await fetch(url, {
       method: 'POST',
@@ -144,7 +144,7 @@ export const reminderService = {
     return response.json();
   },
 
-  updateReminder: async (id: string, reminderData: { text?: string; date?: string; completed?: boolean }) => {
+  updateReminder: async (id: string, reminderData: { text?: string; date?: string; completed?: boolean; repeatMonthly?: boolean }) => {
     const url = API_URL.replace('/accounts', '/reminders');
     const response = await fetch(`${url}/${id}`, {
       method: 'PUT',

@@ -4,7 +4,7 @@ import {
   Plus, Trash2, TrendingUp, TrendingDown, BarChart3, Building2,
   CreditCard, ChevronRight, X, Edit3, LayoutDashboard, ArrowUpRight,
   ArrowDownRight, Wallet, Activity, FileText, Image,
-  Download, Upload, FileDown, Check, LogOut, Menu, Bell, CalendarDays, Clock, Trash
+  Download, Upload, FileDown, Check, LogOut, Menu, Bell, CalendarDays, Clock, Trash, Repeat
 } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -432,10 +432,22 @@ function Dashboard({
   ];
 
   const todayStr = new Date().toISOString().split("T")[0];
+  const todayDate = new Date();
+  todayDate.setHours(0, 0, 0, 0);
+
   const todayReminders = reminders.filter(r => r.date === todayStr && !r.completed);
 
+  const upcoming5DaysReminders = reminders.filter(r => {
+    if (r.completed) return false;
+    const remDate = new Date(r.date + "T00:00:00");
+    remDate.setHours(0, 0, 0, 0);
+    const diffTime = remDate.getTime() - todayDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays >= 0 && diffDays <= 5;
+  }).sort((a, b) => a.date.localeCompare(b.date));
+
   return (
-    <div className="p-6 space-y-6 w-full">
+    <div className="p-6 space-y-6 w-full max-w-7xl mx-auto">
       {/* Page title */}
       <div>
         <h2 className="text-2xl font-bold text-foreground">Dashboard</h2>
@@ -443,6 +455,69 @@ function Dashboard({
           Overview of all accounts — {new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
         </p>
       </div>
+
+      {/* 5-Day Upcoming Reminders Alert Notification */}
+      {upcoming5DaysReminders.length > 0 && (
+        <div className="bg-amber-50/80 border border-amber-200 rounded-2xl p-4.5 shadow-sm space-y-3.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-xs">
+                <Bell size={16} />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-amber-950">Upcoming Reminders Alert (Due in Next 5 Days)</h4>
+                <p className="text-xs text-amber-800/80">You have tasks scheduled coming up within the next 5 days</p>
+              </div>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-200/90 text-amber-900 font-mono">
+              {upcoming5DaysReminders.length}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {upcoming5DaysReminders.map(r => {
+              const d = new Date(r.date + "T00:00:00");
+              d.setHours(0, 0, 0, 0);
+              const diffTime = d.getTime() - todayDate.getTime();
+              const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              const dayLabel = diffDays === 0 ? "Due Today!" : diffDays === 1 ? "Due Tomorrow" : `Due in ${diffDays} days`;
+
+              return (
+                <div key={r.id} className="bg-white rounded-xl border border-amber-200/70 p-3.5 flex flex-col justify-between gap-2.5 shadow-xs hover:border-amber-300 transition-colors">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      diffDays === 0 ? "bg-red-100 text-red-700" : diffDays <= 2 ? "bg-orange-100 text-orange-700" : "bg-amber-100 text-amber-800"
+                    }`}>
+                      {dayLabel}
+                    </span>
+                    <span className="text-[11px] font-semibold text-slate-500">
+                      {d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short" })}
+                    </span>
+                  </div>
+
+                  <p className="text-xs font-semibold text-slate-800 break-words leading-relaxed">{r.text}</p>
+
+                  <div className="flex items-center justify-between pt-2 border-t border-slate-100 mt-0.5">
+                    {r.repeatMonthly ? (
+                      <span className="text-[10px] font-bold text-indigo-600 flex items-center gap-1">
+                        <Repeat size={10} /> Monthly
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-semibold text-slate-400">One-time</span>
+                    )}
+                    <button
+                      onClick={() => onToggleCompleteReminder(r.id, true)}
+                      className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors flex items-center gap-1 active:scale-95"
+                    >
+                      <Check size={12} /> Mark Done
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Today's Reminders */}
       {todayReminders.length > 0 && (
@@ -476,12 +551,19 @@ function Dashboard({
                 >
                   {idx + 1}
                 </span>
-                <p
-                  className="flex-1 text-sm font-medium text-foreground break-words whitespace-normal text-left min-w-0 pr-2"
-                  style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
-                >
-                  {r.text}
-                </p>
+                <div className="flex-1 min-w-0 pr-2">
+                  <p
+                    className="text-sm font-medium text-foreground break-words whitespace-normal text-left"
+                    style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
+                  >
+                    {r.text}
+                  </p>
+                  {r.repeatMonthly && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-600 mt-1">
+                      <Repeat size={10} /> Monthly
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={() => onToggleCompleteReminder(r.id, true)}
                   className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-white transition-all flex-shrink-0 hover:bg-blue-700 active:scale-95 mt-0.5"
@@ -713,33 +795,114 @@ function RemindersPage({
   onAdd,
   onDelete,
   onToggleComplete,
+  onToggleRepeatMonthly,
 }: {
   reminders: any[];
-  onAdd: () => void;
+  onAdd: (presetMonthly?: boolean) => void;
   onDelete: (id: string) => void;
   onToggleComplete: (id: string, completed: boolean) => void;
+  onToggleRepeatMonthly: (id: string, currentRepeat: boolean) => void;
 }) {
+  const [subTab, setSubTab] = useState<"all" | "monthly" | "today" | "upcoming" | "history">("all");
   const todayStr = new Date().toISOString().split("T")[0];
 
-  const upcoming = reminders
-    .filter(r => r.date >= todayStr && !r.completed)
+  const todayList = reminders
+    .filter(r => r.date === todayStr && !r.completed)
     .sort((a, b) => a.date.localeCompare(b.date));
 
-  const past = reminders
-    .filter(r => r.date < todayStr || r.completed)
+  const upcomingList = reminders
+    .filter(r => r.date > todayStr && !r.completed && !r.repeatMonthly)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const monthlyList = reminders
+    .filter(r => r.repeatMonthly && !r.completed)
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const pastList = reminders
+    .filter(r => r.completed || (r.date < todayStr && !r.repeatMonthly))
     .sort((a, b) => b.date.localeCompare(a.date));
 
+  const renderCard = (r: any, badgeText?: string, badgeBg?: string, badgeColor?: string) => {
+    const isToday = r.date === todayStr;
+    const d = new Date(r.date + "T00:00:00");
+
+    return (
+      <div
+        key={r.id}
+        className="bg-white rounded-2xl border border-slate-200 p-4.5 flex flex-col justify-between shadow-xs hover:shadow-md transition-all gap-3 overflow-hidden"
+      >
+        <div className="flex flex-col gap-3 h-full justify-between">
+          <div className="flex items-start justify-between gap-4">
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                {isToday ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600">Today</span>
+                ) : badgeText && badgeText !== "Monthly" ? (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badgeBg || "bg-emerald-50"} ${badgeColor || "text-emerald-600"}`}>{badgeText}</span>
+                ) : !r.repeatMonthly ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600">Upcoming</span>
+                ) : null}
+                {r.repeatMonthly && (
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-600 border border-indigo-100 flex items-center gap-1">
+                    <Repeat size={10} /> Monthly
+                  </span>
+                )}
+                <span className="text-xs font-semibold text-muted-foreground">
+                  {d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                </span>
+              </div>
+              <p
+                className="text-sm font-medium text-foreground leading-relaxed break-words pt-1"
+                style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
+              >
+                {r.text}
+              </p>
+            </div>
+            <button
+              onClick={() => onDelete(r.id)}
+              className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+              title="Delete Reminder"
+            >
+              <Trash2 size={15} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-1 gap-2 flex-wrap">
+            <button
+              onClick={() => onToggleComplete(r.id, true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-50 active:scale-95 transition-all"
+            >
+              <Check size={14} />
+              Mark as Done
+            </button>
+            <button
+              onClick={() => onToggleRepeatMonthly(r.id, !!r.repeatMonthly)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+                r.repeatMonthly
+                  ? "bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100"
+                  : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-700"
+              }`}
+              title={r.repeatMonthly ? "Click to turn off monthly repeat" : "Click to enable monthly repeat"}
+            >
+              <Repeat size={12} className={r.repeatMonthly ? "text-indigo-600" : "opacity-60"} />
+              {r.repeatMonthly ? "Monthly Repeat: ON" : "Repeat Monthly?"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
-    <div className="p-6 space-y-6 w-full max-w-5xl mx-auto">
+    <div className="p-6 space-y-6 w-full max-w-7xl mx-auto">
       {/* ── Page Header ── */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Reminders</h2>
-          <p className="text-sm text-muted-foreground mt-0.5">Stay on top of your financial tasks</p>
+          <p className="text-sm text-muted-foreground mt-0.5">Stay on top of all your financial tasks & monthly recurring bills</p>
         </div>
         <button
-          onClick={onAdd}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all"
+          onClick={() => onAdd(subTab === "monthly")}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold text-white shadow-sm hover:opacity-90 active:scale-95 transition-all shrink-0"
           style={{ backgroundColor: "#1e3a5f" }}
         >
           <Plus size={15} />
@@ -747,18 +910,51 @@ function RemindersPage({
         </button>
       </div>
 
+      {/* ── Inside-Page Sub-Tabs Filter Bar ── */}
+      <div className="flex items-center gap-2 border-b border-border pb-3 overflow-x-auto scrollbar-none">
+        {[
+          { id: "all", label: "All Reminders", count: reminders.filter(r => !r.completed).length, icon: Bell },
+          { id: "monthly", label: "Monthly Reminders", count: monthlyList.length, icon: Repeat, color: "text-indigo-600" },
+          { id: "today", label: "Due Today", count: todayList.length, icon: Bell, color: "text-blue-600" },
+          { id: "upcoming", label: "Upcoming", count: upcomingList.length, icon: CalendarDays, color: "text-emerald-600" },
+          { id: "history", label: "History", count: pastList.length, icon: Clock, color: "text-gray-500" },
+        ].map(tab => {
+          const Icon = tab.icon;
+          const isActive = subTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setSubTab(tab.id as any)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+                isActive
+                  ? "bg-[#1e3a5f] text-white shadow-xs"
+                  : "bg-white border border-border text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              }`}
+            >
+              <Icon size={14} className={isActive ? "text-white" : tab.color || "text-slate-500"} />
+              <span>{tab.label}</span>
+              <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold font-mono ${
+                isActive ? "bg-white/20 text-white" : "bg-slate-100 text-slate-700"
+              }`}>
+                {tab.count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {reminders.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center bg-white border border-border rounded-xl shadow-sm">
-          <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4 bg-gray-50">
-            <Bell size={24} className="text-muted-foreground" />
+          <div className="w-14 h-14 rounded-full flex items-center justify-center mb-4 bg-gray-50 text-slate-500">
+            <Bell size={24} />
           </div>
           <h3 className="font-semibold text-foreground text-base">No reminders yet</h3>
           <p className="text-sm text-muted-foreground mt-1 mb-5 max-w-xs">
             Set a reminder and it will appear on your dashboard on the scheduled date.
           </p>
           <button
-            onClick={onAdd}
-            className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white"
+            onClick={() => onAdd(false)}
+            className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-semibold text-white shadow-sm hover:opacity-90"
             style={{ backgroundColor: "#1e3a5f" }}
           >
             <Plus size={15} /> Create First Reminder
@@ -766,136 +962,174 @@ function RemindersPage({
         </div>
       ) : (
         <div className="space-y-6">
-          {/* ── Stats Row ── */}
-          <div className="grid grid-cols-3 gap-4">
+          {/* Stats Overview Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
-              { label: "Total Reminders", value: reminders.length, color: "#1e3a5f" },
-              { label: "Due Today", value: reminders.filter((r: any) => r.date === todayStr && !r.completed).length, color: "#2563eb" },
-              { label: "Upcoming", value: upcoming.filter((r: any) => r.date > todayStr).length, color: "#059669" },
+              { label: "Active Reminders", value: reminders.filter((r: any) => !r.completed).length, color: "#1e3a5f" },
+              { label: "Due Today", value: todayList.length, color: "#2563eb" },
+              { label: "Upcoming One-Time", value: upcomingList.length, color: "#059669" },
+              { label: "Monthly Recurring", value: monthlyList.length, color: "#4f46e5" },
             ].map(s => (
-              <div key={s.label} className="bg-white rounded-xl border border-border p-4 shadow-sm">
+              <div key={s.label} className="bg-white rounded-xl border border-border p-4 shadow-xs">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{s.label}</p>
                 <p className="text-2xl font-extrabold mt-1 font-mono" style={{ color: s.color }}>{s.value}</p>
               </div>
             ))}
           </div>
 
-          {/* ── Scheduled (Upcoming + Today) — 2-col grid ── */}
-          {upcoming.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <CalendarDays size={15} className="text-muted-foreground" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Scheduled Reminders
-                </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-muted-foreground">
-                  {upcoming.length}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {upcoming.map((r: any) => {
-                  const isToday = r.date === todayStr;
-                  const d = new Date(r.date + "T00:00:00");
-                  return (
-                    <div
-                      key={r.id}
-                      className="bg-white rounded-xl border border-border p-4 flex flex-col justify-between shadow-sm hover:shadow-md transition-all gap-3"
-                      style={{ borderLeft: `4px solid ${isToday ? "#2563eb" : "#e2e8f0"}` }}
+          {/* ── 2-Part Split Layout (for All, Today, Upcoming, Monthly sub-tabs) ── */}
+          {(subTab === "all" || subTab === "today" || subTab === "upcoming" || subTab === "monthly") && (
+            <div className={`grid grid-cols-1 ${subTab === "all" ? "lg:grid-cols-2" : "grid-cols-1"} gap-6 items-start`}>
+              {/* ── LEFT SIDE: UPCOMING REMINDERS (Due Today + Upcoming) ── */}
+              {(subTab === "all" || subTab === "today" || subTab === "upcoming") && (
+                <div className="space-y-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-200/80">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <CalendarDays size={16} className="text-emerald-600" />
+                      <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                        Upcoming Reminders
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 font-mono">
+                        {todayList.length + upcomingList.length}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => onAdd(false)}
+                      className="text-xs font-bold text-emerald-700 hover:text-emerald-900 flex items-center gap-1"
                     >
-                      <div className="flex flex-col gap-3 h-full justify-between">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="space-y-1.5 flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              {isToday ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-600">Today</span>
-                              ) : (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600">Upcoming</span>
-                              )}
-                              <span className="text-xs font-semibold text-muted-foreground">
-                                {d.toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
-                              </span>
-                            </div>
+                      <Plus size={13} /> New One-Time
+                    </button>
+                  </div>
+
+                  {todayList.length === 0 && upcomingList.length === 0 ? (
+                    <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-muted-foreground text-sm">
+                      No upcoming one-time reminders scheduled.
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Due Today subgroup */}
+                      {(subTab === "all" || subTab === "today") && todayList.length > 0 && (
+                        <div className="space-y-2.5">
+                          <p className="text-xs font-bold text-blue-600 uppercase tracking-wider flex items-center gap-1.5">
+                            <Bell size={12} /> Due Today ({todayList.length})
+                          </p>
+                          <div className="space-y-3">
+                            {todayList.map(r => renderCard(r, "Today", "bg-blue-50", "text-blue-600"))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Upcoming subgroup */}
+                      {(subTab === "all" || subTab === "upcoming") && upcomingList.length > 0 && (
+                        <div className="space-y-2.5">
+                          {todayList.length > 0 && (
+                            <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                              Upcoming One-Time ({upcomingList.length})
+                            </p>
+                          )}
+                          <div className="space-y-3">
+                            {upcomingList.map(r => renderCard(r, "Upcoming", "bg-emerald-50", "text-emerald-600"))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── RIGHT SIDE: MONTHLY RECURRING REMINDERS ── */}
+              {(subTab === "all" || subTab === "monthly") && (
+                <div className="space-y-4 bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100">
+                  <div className="flex items-center justify-between pb-3 border-b border-indigo-100">
+                    <div className="flex items-center gap-2">
+                      <Repeat size={16} className="text-indigo-600" />
+                      <h3 className="text-sm font-bold text-indigo-950 uppercase tracking-wider">
+                        Monthly Reminders
+                      </h3>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 font-mono">
+                        {monthlyList.length}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => onAdd(true)}
+                      className="text-xs font-bold text-indigo-700 hover:text-indigo-900 flex items-center gap-1"
+                    >
+                      <Plus size={13} /> New Monthly
+                    </button>
+                  </div>
+
+                  {monthlyList.length === 0 ? (
+                    <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-muted-foreground text-sm">
+                      No monthly recurring reminders set yet. Click "New Monthly" to add one.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {monthlyList.map(r => renderCard(r, "Monthly", "bg-indigo-50", "text-indigo-700"))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── HISTORY SUB-TAB VIEW ── */}
+          {subTab === "history" && (
+            <div className="space-y-4 bg-slate-50/70 p-5 rounded-2xl border border-slate-200/80">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <Clock size={16} className="text-slate-600" />
+                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
+                    Completed History Log
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700 font-mono">
+                    {pastList.length}
+                  </span>
+                </div>
+              </div>
+
+              {pastList.length === 0 ? (
+                <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-muted-foreground text-sm">
+                  No completed reminder history recorded yet.
+                </div>
+              ) : (
+                <div className="bg-white rounded-xl border border-border divide-y divide-border overflow-hidden shadow-xs">
+                  {pastList.map((r: any) => {
+                    const d = new Date(r.date + "T00:00:00");
+                    return (
+                      <div key={r.id} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-gray-50 transition-colors">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className="w-6 h-6 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                            <Check size={13} />
+                          </div>
+                          <div className="min-w-0 flex-1">
                             <p
-                              className="text-sm font-medium text-foreground leading-relaxed break-words"
+                              className="text-sm font-semibold text-slate-800 break-words leading-snug"
                               style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
                             >
                               {r.text}
                             </p>
+                            <div className="flex items-center gap-2 text-xs text-slate-400 mt-0.5 flex-wrap">
+                              <span>{d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}</span>
+                              {r.repeatMonthly && (
+                                <span className="text-indigo-600 font-bold flex items-center gap-0.5">
+                                  • <Repeat size={10} /> Monthly
+                                </span>
+                              )}
+                            </div>
                           </div>
-                          <button
-                            onClick={() => onDelete(r.id)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
-                            title="Delete Reminder"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                        <div className="flex items-center justify-between border-t border-gray-100 pt-3 mt-1">
-                          <button
-                            onClick={() => onToggleComplete(r.id, true)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-emerald-600 hover:bg-emerald-50 transition-colors"
-                          >
-                            <Check size={14} />
-                            Mark as Done
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* ── Completed — List ── */}
-          {past.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Clock size={15} className="text-muted-foreground" />
-                <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Completed / Past</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 text-muted-foreground">
-                  {past.length}
-                </span>
-              </div>
-              <div className="bg-white rounded-xl border border-border divide-y divide-border overflow-hidden shadow-sm">
-                {past.map((r: any) => {
-                  const d = new Date(r.date + "T00:00:00");
-                  return (
-                    <div key={r.id} className="p-4 flex flex-col gap-2.5 hover:bg-gray-50 transition-colors">
-                      {/* Top: Date */}
-                      <div className="text-xs text-muted-foreground font-semibold">
-                        {d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
-                      </div>
-
-                      {/* Middle: Content */}
-                      <p
-                        className="text-sm text-foreground break-words text-left leading-relaxed min-w-0"
-                        style={{ wordBreak: "break-word", overflowWrap: "anywhere" }}
-                      >
-                        {r.text}
-                      </p>
-
-                      {/* Bottom: Done status & Delete button */}
-                      <div className="flex items-center justify-between mt-1 pt-2.5 border-t border-gray-100/80">
-                        <div>
-                          {r.completed && (
-                            <span className="text-emerald-600 text-xs font-bold flex items-center gap-1">
-                              <Check size={13} /> Done
-                            </span>
-                          )}
                         </div>
                         <button
                           onClick={() => onDelete(r.id)}
-                          className="p-1.5 rounded-lg text-muted-foreground hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors shrink-0"
                           title="Delete Reminder"
                         >
                           <Trash2 size={14} />
                         </button>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -913,7 +1147,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [reminders, setReminders] = useState<any[]>([]);
   const [showReminderModal, setShowReminderModal] = useState(false);
-  const [reminderForm, setReminderForm] = useState({ text: "", date: today });
+  const [reminderForm, setReminderForm] = useState({ text: "", date: today, repeatMonthly: false });
   const [confirmModal, setConfirmModal] = useState<{
     show: boolean;
     title: string;
@@ -1128,11 +1362,12 @@ export default function App() {
     try {
       const newReminder = await reminderService.createReminder({
         text: reminderForm.text.trim(),
-        date: reminderForm.date
+        date: reminderForm.date,
+        repeatMonthly: reminderForm.repeatMonthly
       });
       setReminders(prev => [...prev, newReminder]);
       setShowReminderModal(false);
-      setReminderForm({ text: "", date: today });
+      setReminderForm({ text: "", date: today, repeatMonthly: false });
     } catch (err) {
       console.error("Failed to save reminder", err);
     }
@@ -1149,10 +1384,19 @@ export default function App() {
 
   const toggleReminderComplete = async (id: string, completed: boolean) => {
     try {
-      const updated = await reminderService.updateReminder(id, { completed });
-      setReminders(prev => prev.map(r => r.id === id ? { ...r, completed: updated.completed } : r));
+      await reminderService.updateReminder(id, { completed });
+      await fetchReminders();
     } catch (err) {
       console.error("Failed to update reminder status", err);
+    }
+  };
+
+  const toggleReminderRepeatMonthly = async (id: string, currentRepeat: boolean) => {
+    try {
+      await reminderService.updateReminder(id, { repeatMonthly: !currentRepeat });
+      await fetchReminders();
+    } catch (err) {
+      console.error("Failed to update reminder repeat status", err);
     }
   };
 
@@ -1170,7 +1414,7 @@ export default function App() {
       {/* Header */}
       <header className="bg-primary text-primary-foreground px-4 sm:px-6 py-4 flex flex-wrap sm:flex-nowrap items-center justify-between shadow-lg flex-shrink-0 gap-3">
         <div className="flex items-center gap-2 sm:gap-3">
-          <button 
+          <button
             className="md:hidden p-1.5 -ml-1.5 rounded-md hover:bg-white/15 transition-colors"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
@@ -1205,9 +1449,9 @@ export default function App() {
           >
             <Bell size={16} />
             <span>Reminders</span>
-            {reminders.filter(r => r.date === today).length > 0 && (
+            {reminders.filter(r => r.date === today && !r.completed).length > 0 && (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
-                {reminders.filter(r => r.date === today).length}
+                {reminders.filter(r => r.date === today && !r.completed).length}
               </span>
             )}
           </button>
@@ -1233,7 +1477,7 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden relative">
         {/* Backdrop for mobile sidebar */}
         {mobileMenuOpen && (
-          <div 
+          <div
             className="absolute inset-0 bg-black/50 z-20 md:hidden"
             onClick={() => setMobileMenuOpen(false)}
           />
@@ -1246,33 +1490,30 @@ export default function App() {
             <div className="px-4 py-3 border-b border-border flex flex-col gap-2">
               <button
                 onClick={() => { setActiveTab("dashboard"); setMobileMenuOpen(false); }}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  activeTab === "dashboard"
-                    ? "bg-accent text-white"
-                    : "text-muted-foreground hover:bg-gray-50 hover:text-foreground"
-                }`}
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === "dashboard"
+                  ? "bg-accent text-white"
+                  : "text-muted-foreground hover:bg-gray-50 hover:text-foreground"
+                  }`}
               >
                 <LayoutDashboard size={15} />
                 Dashboard
               </button>
               <button
                 onClick={() => { setActiveTab("reminders"); setMobileMenuOpen(false); }}
-                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${
-                  activeTab === "reminders"
-                    ? "bg-accent text-white"
-                    : "text-muted-foreground hover:bg-gray-50 hover:text-foreground"
-                }`}
+                className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold transition-all ${activeTab === "reminders"
+                  ? "bg-accent text-white"
+                  : "text-muted-foreground hover:bg-gray-50 hover:text-foreground"
+                  }`}
               >
                 <Bell size={15} />
                 Reminders
-                {reminders.length > 0 && (
+                {reminders.filter(r => !r.completed).length > 0 && (
                   <span
-                    className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                      activeTab === "reminders" ? "bg-white/25 text-white" : "text-primary"
-                    }`}
+                    className={`ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-full ${activeTab === "reminders" ? "bg-white/25 text-white" : "text-primary"
+                      }`}
                     style={activeTab !== "reminders" ? { backgroundColor: "#e8edf5" } : {}}
                   >
-                    {reminders.length}
+                    {reminders.filter(r => !r.completed).length}
                   </span>
                 )}
               </button>
@@ -1280,7 +1521,7 @@ export default function App() {
 
             <div className="px-4 py-2 border-b border-border flex items-center justify-between">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest py-1">Companies</p>
-              <button 
+              <button
                 onClick={() => {
                   setCompanyForm({ name: "", type: "company", openingBalance: "", color: "#1e3a5f" });
                   setShowAddCompany(true);
@@ -1300,9 +1541,8 @@ export default function App() {
                   <button
                     key={acc.id}
                     onClick={() => setActiveTab(acc.id)}
-                    className={`w-full text-left px-4 py-3 flex items-center justify-between gap-2 transition-all group ${
-                      isActive ? "bg-secondary border-r-2 border-r-accent" : "hover:bg-gray-50"
-                    }`}
+                    className={`w-full text-left px-4 py-3 flex items-center justify-between gap-2 transition-all group ${isActive ? "bg-secondary border-r-2 border-r-accent" : "hover:bg-gray-50"
+                      }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: acc.bgColor }}>
@@ -1321,7 +1561,7 @@ export default function App() {
 
             <div className="px-4 py-2 border-y border-border flex items-center justify-between bg-gray-50/50">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest py-1">Overdrafts</p>
-              <button 
+              <button
                 onClick={() => {
                   setCompanyForm({ name: "", type: "overdraft", openingBalance: "", color: "#9f1239" });
                   setShowAddCompany(true);
@@ -1341,9 +1581,8 @@ export default function App() {
                   <button
                     key={acc.id}
                     onClick={() => setActiveTab(acc.id)}
-                    className={`w-full text-left px-4 py-3 flex items-center justify-between gap-2 transition-all group ${
-                      isActive ? "bg-secondary border-r-2 border-r-accent" : "hover:bg-gray-50"
-                    }`}
+                    className={`w-full text-left px-4 py-3 flex items-center justify-between gap-2 transition-all group ${isActive ? "bg-secondary border-r-2 border-r-accent" : "hover:bg-gray-50"
+                      }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style={{ backgroundColor: acc.bgColor }}>
@@ -1388,11 +1627,12 @@ export default function App() {
             <RemindersPage
               reminders={reminders}
               onAdd={() => {
-                setReminderForm({ text: "", date: today });
+                setReminderForm({ text: "", date: today, repeatMonthly: false });
                 setShowReminderModal(true);
               }}
               onDelete={dismissReminder}
               onToggleComplete={toggleReminderComplete}
+              onToggleRepeatMonthly={toggleReminderRepeatMonthly}
             />
           ) : activeAccount ? (
             <div className="p-6 space-y-5 w-full">
@@ -1422,7 +1662,7 @@ export default function App() {
                             }
                           }}
                         />
-                        <button 
+                        <button
                           onClick={() => {
                             editAccountName(activeAccount.id, nameInput);
                             setEditingName(null);
@@ -1432,7 +1672,7 @@ export default function App() {
                         >
                           <Check size={16} />
                         </button>
-                        <button 
+                        <button
                           onClick={() => setEditingName(null)}
                           className="p-1 rounded bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors"
                           title="Cancel"
@@ -1520,13 +1760,13 @@ export default function App() {
                 <div className="bg-emerald-50 rounded-xl border border-emerald-100 p-4">
                   <div className="text-xs text-emerald-700 mb-1">Total Credit</div>
                   <div className="text-base font-mono font-bold text-emerald-700">+₹{fmt(calcTotalCredit(activeAccount))}</div>
-                  <div className="text-xs text-emerald-600 mt-1">{activeAccount.transactions.filter((t : any) => t.type === "credit").length} transactions</div>
+                  <div className="text-xs text-emerald-600 mt-1">{activeAccount.transactions.filter((t: any) => t.type === "credit").length} transactions</div>
                 </div>
 
                 <div className="bg-red-50 rounded-xl border border-red-100 p-4">
                   <div className="text-xs text-red-700 mb-1">Total Debit</div>
                   <div className="text-base font-mono font-bold text-red-600">-₹{fmt(calcTotalDebit(activeAccount))}</div>
-                  <div className="text-xs text-red-600 mt-1">{activeAccount.transactions.filter((t : any) => t.type === "debit").length} transactions</div>
+                  <div className="text-xs text-red-600 mt-1">{activeAccount.transactions.filter((t: any) => t.type === "debit").length} transactions</div>
                 </div>
 
                 <div className="rounded-xl border p-4" style={{ backgroundColor: activeAccount.bgColor, borderColor: `${activeAccount.color}30` }}>
@@ -1564,7 +1804,7 @@ export default function App() {
                         <span className="text-sm font-semibold text-muted-foreground">Opening Balance</span>
                         <span className="font-mono font-bold text-sm text-foreground">{fmt(activeAccount.openingBalance)}</span>
                       </div>
-                      
+
                       {activeAccount.transactions.map((tx: any, i: any) => (
                         <div key={tx.id} className="p-5 flex flex-col gap-3 hover:bg-gray-50 transition-colors">
                           <div className="flex justify-between items-start gap-4">
@@ -1590,17 +1830,17 @@ export default function App() {
                               </div>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center justify-between mt-1 pt-3 border-t border-border/40">
                             {tx.document?.name ? (
-                                <button
-                                  onClick={() => setViewDoc(tx.document!)}
-                                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
-                                >
-                                  {tx.document.mimeType?.startsWith("image/") ? <Image size={14} /> : <FileText size={14} />}
-                                  <span className="text-xs font-medium max-w-[150px] truncate">{tx.document.name}</span>
-                                </button>
-                            ) : <div/>}
+                              <button
+                                onClick={() => setViewDoc(tx.document!)}
+                                className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
+                              >
+                                {tx.document.mimeType?.startsWith("image/") ? <Image size={14} /> : <FileText size={14} />}
+                                <span className="text-xs font-medium max-w-[150px] truncate">{tx.document.name}</span>
+                              </button>
+                            ) : <div />}
                             <div className="flex items-center gap-1.5 ml-auto">
                               <button
                                 onClick={() => handleEditClick(tx)}
@@ -1620,14 +1860,14 @@ export default function App() {
                           </div>
                         </div>
                       ))}
-                      
+
                       <div className="px-5 py-4 flex justify-between items-center" style={{ backgroundColor: activeAccount.bgColor }}>
                         <span className="text-sm font-bold" style={{ color: activeAccount.color }}>Closing Balance</span>
                         <div className="text-right">
-                           <div className="text-xs font-mono font-bold text-emerald-600 mb-0.5">Credit: +{fmt(calcTotalCredit(activeAccount))}</div>
-                           <div className="text-base font-mono font-bold" style={{ color: calcBalance(activeAccount) < 0 ? "#dc2626" : activeAccount.color }}>
-                             {fmt(calcBalance(activeAccount))}
-                           </div>
+                          <div className="text-xs font-mono font-bold text-emerald-600 mb-0.5">Credit: +{fmt(calcTotalCredit(activeAccount))}</div>
+                          <div className="text-base font-mono font-bold" style={{ color: calcBalance(activeAccount) < 0 ? "#dc2626" : activeAccount.color }}>
+                            {fmt(calcBalance(activeAccount))}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1635,93 +1875,93 @@ export default function App() {
                     {/* Desktop View */}
                     <div className="hidden md:block overflow-x-auto">
                       <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 text-xs text-muted-foreground uppercase tracking-wide">
-                          <th className="px-4 py-3 text-left font-semibold w-24">Date</th>
-                          <th className="px-4 py-3 text-left font-semibold">Description</th>
-                          <th className="px-4 py-3 text-left font-semibold w-24">{activeAccount.type === "company" ? "Project" : "Ref. No."}</th>
-                          <th className="px-4 py-3 text-center font-semibold w-20">Doc</th>
-                          <th className="px-4 py-3 text-right font-semibold w-32">Credit (₹)</th>
-                          <th className="px-4 py-3 text-right font-semibold w-32">Debit (₹)</th>
-                          <th className="px-4 py-3 text-right font-semibold w-36">Balance (₹)</th>
-                          <th className="px-4 py-3 text-center w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr className="bg-blue-50/50 border-b border-border">
-                          <td colSpan={6} className="px-4 py-2 text-xs text-muted-foreground font-semibold">Opening Balance</td>
-                          <td className="px-4 py-2 text-right font-mono text-xs font-bold text-foreground">{fmt(activeAccount.openingBalance)}</td>
-                          <td></td>
-                        </tr>
+                        <thead>
+                          <tr className="bg-gray-50 text-xs text-muted-foreground uppercase tracking-wide">
+                            <th className="px-4 py-3 text-left font-semibold w-24">Date</th>
+                            <th className="px-4 py-3 text-left font-semibold">Description</th>
+                            <th className="px-4 py-3 text-left font-semibold w-24">{activeAccount.type === "company" ? "Project" : "Ref. No."}</th>
+                            <th className="px-4 py-3 text-center font-semibold w-20">Doc</th>
+                            <th className="px-4 py-3 text-right font-semibold w-32">Credit (₹)</th>
+                            <th className="px-4 py-3 text-right font-semibold w-32">Debit (₹)</th>
+                            <th className="px-4 py-3 text-right font-semibold w-36">Balance (₹)</th>
+                            <th className="px-4 py-3 text-center w-10"></th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bg-blue-50/50 border-b border-border">
+                            <td colSpan={6} className="px-4 py-2 text-xs text-muted-foreground font-semibold">Opening Balance</td>
+                            <td className="px-4 py-2 text-right font-mono text-xs font-bold text-foreground">{fmt(activeAccount.openingBalance)}</td>
+                            <td></td>
+                          </tr>
 
-                        {activeAccount.transactions.map((tx: any, i: any) => (
-                          <tr key={tx.id} className="border-b border-border/60 hover:bg-gray-50 transition-colors group">
-                            <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{tx.date.split("-").reverse().join("/")}</td>
-                            <td className="px-4 py-3 text-foreground">{tx.description}</td>
-                            <td className={`px-4 py-3 text-xs text-muted-foreground ${activeAccount.type === "company" ? "" : "font-mono"}`}>{tx.reference || "—"}</td>
-                            <td className="px-4 py-3 text-center">
-                              {tx.document?.name ? (
-                                <div className="flex items-center justify-center gap-1">
+                          {activeAccount.transactions.map((tx: any, i: any) => (
+                            <tr key={tx.id} className="border-b border-border/60 hover:bg-gray-50 transition-colors group">
+                              <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{tx.date.split("-").reverse().join("/")}</td>
+                              <td className="px-4 py-3 text-foreground">{tx.description}</td>
+                              <td className={`px-4 py-3 text-xs text-muted-foreground ${activeAccount.type === "company" ? "" : "font-mono"}`}>{tx.reference || "—"}</td>
+                              <td className="px-4 py-3 text-center">
+                                {tx.document?.name ? (
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={() => setViewDoc(tx.document!)}
+                                      className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
+                                      title={tx.document.name}
+                                    >
+                                      {tx.document.mimeType?.startsWith("image/")
+                                        ? <Image size={12} />
+                                        : <FileText size={12} />}
+                                      <span className="text-[10px] font-medium max-w-[60px] truncate">{tx.document.name?.split(".")[0]}</span>
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/30 text-xs">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono">
+                                {tx.type === "credit"
+                                  ? <span className="text-emerald-600 font-semibold">{fmt(tx.amount)}</span>
+                                  : <span className="text-muted-foreground/40">—</span>}
+                              </td>
+                              <td className="px-4 py-3 text-right font-mono">
+                                {tx.type === "debit"
+                                  ? <span className="text-red-500 font-semibold">{fmt(tx.amount)}</span>
+                                  : <span className="text-muted-foreground/40">—</span>}
+                              </td>
+                              <td className={`px-4 py-3 text-right font-mono font-semibold text-xs ${runningBalances[i] < 0 ? "text-red-500" : "text-foreground"}`}>
+                                {fmt(runningBalances[i])}
+                              </td>
+                              <td className="px-4 py-3 text-center">
+                                <div className="flex items-center justify-center gap-2">
                                   <button
-                                    onClick={() => setViewDoc(tx.document!)}
-                                    className="flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-600 transition-colors"
-                                    title={tx.document.name}
+                                    onClick={() => handleEditClick(tx)}
+                                    className="text-gray-500 hover:text-accent p-1 hover:bg-gray-100 rounded transition-colors cursor-pointer"
+                                    title="Edit Entry"
                                   >
-                                    {tx.document.mimeType?.startsWith("image/")
-                                      ? <Image size={12} />
-                                      : <FileText size={12} />}
-                                    <span className="text-[10px] font-medium max-w-[60px] truncate">{tx.document.name?.split(".")[0]}</span>
+                                    <Edit3 size={15} />
+                                  </button>
+                                  <button
+                                    onClick={() => deleteTransaction(tx.id)}
+                                    className="text-gray-500 hover:text-red-600 p-1 hover:bg-red-50 rounded transition-colors cursor-pointer"
+                                    title="Delete Entry"
+                                  >
+                                    <Trash2 size={15} />
                                   </button>
                                 </div>
-                              ) : (
-                                <span className="text-muted-foreground/30 text-xs">—</span>
-                              )}
-                            </td>
-                            <td className="px-4 py-3 text-right font-mono">
-                              {tx.type === "credit"
-                                ? <span className="text-emerald-600 font-semibold">{fmt(tx.amount)}</span>
-                                : <span className="text-muted-foreground/40">—</span>}
-                            </td>
-                            <td className="px-4 py-3 text-right font-mono">
-                              {tx.type === "debit"
-                                ? <span className="text-red-500 font-semibold">{fmt(tx.amount)}</span>
-                                : <span className="text-muted-foreground/40">—</span>}
-                            </td>
-                            <td className={`px-4 py-3 text-right font-mono font-semibold text-xs ${runningBalances[i] < 0 ? "text-red-500" : "text-foreground"}`}>
-                              {fmt(runningBalances[i])}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  onClick={() => handleEditClick(tx)}
-                                  className="text-gray-500 hover:text-accent p-1 hover:bg-gray-100 rounded transition-colors cursor-pointer"
-                                  title="Edit Entry"
-                                >
-                                  <Edit3 size={15} />
-                                </button>
-                                <button
-                                  onClick={() => deleteTransaction(tx.id)}
-                                  className="text-gray-500 hover:text-red-600 p-1 hover:bg-red-50 rounded transition-colors cursor-pointer"
-                                  title="Delete Entry"
-                                >
-                                  <Trash2 size={15} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                            </tr>
+                          ))}
 
-                        <tr style={{ backgroundColor: activeAccount.bgColor }}>
-                          <td colSpan={5} className="px-4 py-3 text-xs font-bold" style={{ color: activeAccount.color }}>Closing Balance</td>
-                          <td className="px-4 py-3 text-right font-mono text-xs font-bold text-emerald-600">+{fmt(calcTotalCredit(activeAccount))}</td>
-                          <td className="px-4 py-3 text-right font-mono text-sm font-bold" style={{ color: calcBalance(activeAccount) < 0 ? "#dc2626" : activeAccount.color }}>
-                            {fmt(calcBalance(activeAccount))}
-                          </td>
-                          <td></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+                          <tr style={{ backgroundColor: activeAccount.bgColor }}>
+                            <td colSpan={5} className="px-4 py-3 text-xs font-bold" style={{ color: activeAccount.color }}>Closing Balance</td>
+                            <td className="px-4 py-3 text-right font-mono text-xs font-bold text-emerald-600">+{fmt(calcTotalCredit(activeAccount))}</td>
+                            <td className="px-4 py-3 text-right font-mono text-sm font-bold" style={{ color: calcBalance(activeAccount) < 0 ? "#dc2626" : activeAccount.color }}>
+                              {fmt(calcBalance(activeAccount))}
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
                   </>
                 )}
               </div>
@@ -1757,11 +1997,10 @@ export default function App() {
                     <button
                       key={m}
                       onClick={() => setReportMonth(m)}
-                      className={`py-2 rounded-lg text-xs font-semibold transition-all border ${
-                        reportMonth === m
-                          ? "bg-primary text-white border-primary"
-                          : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
-                      }`}
+                      className={`py-2 rounded-lg text-xs font-semibold transition-all border ${reportMonth === m
+                        ? "bg-primary text-white border-primary"
+                        : "border-border text-muted-foreground hover:border-primary/40 hover:text-foreground"
+                        }`}
                     >
                       {new Date(2000, m - 1, 1).toLocaleString("en-IN", { month: "short" })}
                     </button>
@@ -1810,7 +2049,7 @@ export default function App() {
                   {new Date(reportYear, reportMonth - 1, 1).toLocaleString("en-IN", { month: "long", year: "numeric" })}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  {accounts.reduce((s, a) => s + a.transactions.filter((tx : any) => {
+                  {accounts.reduce((s, a) => s + a.transactions.filter((tx: any) => {
                     const d = new Date(tx.date);
                     return d.getMonth() + 1 === reportMonth && d.getFullYear() === reportYear;
                   }).length, 0)} transactions across all accounts
@@ -2031,17 +2270,15 @@ export default function App() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => setForm(f => ({ ...f, type: "credit" }))}
-                    className={`py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 border-2 transition-all ${
-                      form.type === "credit" ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "border-border text-muted-foreground hover:border-emerald-200"
-                    }`}
+                    className={`py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 border-2 transition-all ${form.type === "credit" ? "bg-emerald-50 border-emerald-500 text-emerald-700" : "border-border text-muted-foreground hover:border-emerald-200"
+                      }`}
                   >
                     <TrendingUp size={15} /> Credit
                   </button>
                   <button
                     onClick={() => setForm(f => ({ ...f, type: "debit" }))}
-                    className={`py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 border-2 transition-all ${
-                      form.type === "debit" ? "bg-red-50 border-red-500 text-red-600" : "border-border text-muted-foreground hover:border-red-200"
-                    }`}
+                    className={`py-3 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 border-2 transition-all ${form.type === "debit" ? "bg-red-50 border-red-500 text-red-600" : "border-border text-muted-foreground hover:border-red-200"
+                      }`}
                   >
                     <TrendingDown size={15} /> Debit
                   </button>
@@ -2269,6 +2506,25 @@ export default function App() {
                 />
               </div>
 
+              {/* Repeat Monthly Toggle */}
+              <div className="flex items-center justify-between p-3 rounded-xl border border-border bg-slate-50/70">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                    <Repeat size={16} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-foreground">Repeat Monthly</p>
+                    <p className="text-[11px] text-muted-foreground">Auto-schedules for the same day next month when completed</p>
+                  </div>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={reminderForm.repeatMonthly}
+                  onChange={e => setReminderForm({ ...reminderForm, repeatMonthly: e.target.checked })}
+                  className="w-4 h-4 text-[#1e3a5f] rounded border-slate-300 focus:ring-[#1e3a5f] cursor-pointer"
+                />
+              </div>
+
               {/* Preview pill */}
               {reminderForm.text && reminderForm.date && (
                 <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl border" style={{ backgroundColor: "#e8edf5", borderColor: "#c8d5e8" }}>
@@ -2279,6 +2535,7 @@ export default function App() {
                   >
                     <span className="font-bold">"{reminderForm.text}"</span>{" "}
                     on {new Date(reminderForm.date + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "long", year: "numeric" })}
+                    {reminderForm.repeatMonthly && <span className="font-semibold text-indigo-700 ml-1">(Repeats Monthly)</span>}
                   </p>
                 </div>
               )}

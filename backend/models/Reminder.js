@@ -17,6 +17,10 @@ const reminderSchema = new mongoose.Schema({
   completed: {
     type: Boolean,
     default: false
+  },
+  repeatMonthly: {
+    type: Boolean,
+    default: false
   }
 }, { timestamps: true });
 
