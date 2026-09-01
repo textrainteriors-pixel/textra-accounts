@@ -65,7 +65,7 @@ export default function Login({ onLogin }: { onLogin: () => void }) {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="focus:ring-accent focus:border-accent block w-full pl-10 sm:text-sm border-slate-300 rounded-xl h-11 bg-slate-50 border transition-colors"
-                  placeholder="admin"
+                  placeholder="username"
                 />
               </div>
             </div>
