@@ -31,8 +31,11 @@ export const useAccountsController = (isAuthenticated: boolean) => {
       setAccounts(prev => prev.map(a =>
         a.id === accountId ? { ...a, transactions: [...a.transactions, newTx] } : a
       ));
-    } catch (error) {
+      return newTx;
+    } catch (error: any) {
       console.error("Failed to add transaction", error);
+      alert(error.message || "Failed to save transaction. Please try again.");
+      throw error;
     }
   };
 
@@ -96,8 +99,11 @@ export const useAccountsController = (isAuthenticated: boolean) => {
           transactions: a.transactions.map((t: any) => t.id === txId ? updatedTx : t)
         } : a
       ));
-    } catch (error) {
+      return updatedTx;
+    } catch (error: any) {
       console.error("Failed to edit transaction", error);
+      alert(error.message || "Failed to update transaction. Please try again.");
+      throw error;
     }
   };
 

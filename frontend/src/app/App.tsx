@@ -124,7 +124,7 @@ export default function App() {
   };
 
   // ─── Transactions ─────────────────────────────────────────────────────────────
-  const addTransaction = () => {
+  const addTransaction = async () => {
     if (!form.description || !form.amount) return;
     const tx = {
       date: form.date,
@@ -134,15 +134,19 @@ export default function App() {
       reference: form.reference || undefined,
       document: form.document || undefined,
     };
-    if (editingTxId && editingAccountId) {
-      editTransaction(editingAccountId, editingTxId, tx);
-    } else {
-      handleAddTx(activeTab, tx);
+    try {
+      if (editingTxId && editingAccountId) {
+        await editTransaction(editingAccountId, editingTxId, tx);
+      } else {
+        await handleAddTx(activeTab, tx);
+      }
+      setForm({ date: today, description: "", type: "credit", amount: "", reference: "", document: null });
+      setEditingTxId(null);
+      setEditingAccountId(null);
+      setShowForm(false);
+    } catch (err) {
+      // Error alerted in controller
     }
-    setForm({ date: today, description: "", type: "credit", amount: "", reference: "", document: null });
-    setEditingTxId(null);
-    setEditingAccountId(null);
-    setShowForm(false);
   };
 
   const handleEditClick = (tx: any, accountId?: string) => {
