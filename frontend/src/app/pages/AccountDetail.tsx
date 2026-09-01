@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Plus, Trash2, BarChart3, Building2,
   CreditCard, Edit3, X, Check,
   FileText, Image, Search, Filter, RotateCcw,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
 } from "lucide-react";
 import type { Account, AttachedDoc } from "../types";
 import { calcBalance, calcTotalCredit, calcTotalDebit, fmt, fmtSign } from "../utils";
@@ -56,19 +57,22 @@ export default function AccountDetail({
 
   const txsWithBalances = useMemo(() => {
     let bal = activeAccount.openingBalance;
-    return activeAccount.transactions.map((tx: any) => {
+    const list = activeAccount.transactions.map((tx: any) => {
       bal = tx.type === "credit" ? bal + tx.amount : bal - tx.amount;
       return { ...tx, runningBalance: bal };
     });
+    return list.slice().reverse();
   }, [activeAccount]);
 
   const filteredTransactions = useMemo(() => {
     return txsWithBalances.filter((tx: any) => {
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.toLowerCase().trim();
         const matchDesc = tx.description?.toLowerCase().includes(q);
         const matchRef = tx.reference?.toLowerCase().includes(q);
-        if (!matchDesc && !matchRef) return false;
+        const matchAmt = String(tx.amount || "").includes(q);
+        const matchDateStr = tx.date ? (tx.date.includes(q) || tx.date.split("-").reverse().join("/").includes(q)) : false;
+        if (!matchDesc && !matchRef && !matchAmt && !matchDateStr) return false;
       }
       if (filterType !== "all" && tx.type !== filterType) return false;
       if (filterProject !== "all" && tx.reference !== filterProject) return false;
@@ -86,7 +90,26 @@ export default function AccountDetail({
     setFilterProject("all");
     setStartDate("");
     setEndDate("");
+    setCurrentPage(1);
   };
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeAccount.id, searchQuery, filterType, filterProject, startDate, endDate]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedTransactions = useMemo(() => {
+    const start = (safeCurrentPage - 1) * pageSize;
+    return filteredTransactions.slice(start, start + pageSize);
+  }, [filteredTransactions, safeCurrentPage, pageSize]);
+
+  const startItemIndex = filteredTransactions.length === 0 ? 0 : (safeCurrentPage - 1) * pageSize + 1;
+  const endItemIndex = Math.min(safeCurrentPage * pageSize, filteredTransactions.length);
 
   return (
     <div className="p-6 space-y-5 w-full">
@@ -252,7 +275,7 @@ export default function AccountDetail({
                 <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
-                  placeholder="Search description/ref..."
+                  placeholder="Search desc, ref, date, amount..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full text-xs pl-8 pr-7 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white"
@@ -345,12 +368,7 @@ export default function AccountDetail({
           <>
             {/* Mobile View */}
             <div className="md:hidden flex flex-col divide-y divide-border/60">
-              <div className="px-5 py-3 bg-blue-50/30 flex justify-between items-center">
-                <span className="text-sm font-semibold text-muted-foreground">Opening Balance</span>
-                <span className="font-mono font-bold text-sm text-foreground">{fmt(activeAccount.openingBalance)}</span>
-              </div>
-
-              {filteredTransactions.map((tx: any) => (
+              {paginatedTransactions.map((tx: any) => (
                 <div key={tx.id} className="p-5 flex flex-col gap-3 hover:bg-gray-50 transition-colors">
                   <div className="flex justify-between items-start gap-4">
                     <div className="min-w-0">
@@ -406,6 +424,13 @@ export default function AccountDetail({
                 </div>
               ))}
 
+              {safeCurrentPage === totalPages && (
+                <div className="px-5 py-3 bg-blue-50/30 flex justify-between items-center border-t border-border/60">
+                  <span className="text-sm font-semibold text-muted-foreground">Opening Balance</span>
+                  <span className="font-mono font-bold text-sm text-foreground">{fmt(activeAccount.openingBalance)}</span>
+                </div>
+              )}
+
               <div className="px-5 py-4 flex justify-between items-center" style={{ backgroundColor: activeAccount.bgColor }}>
                 <span className="text-sm font-bold" style={{ color: activeAccount.color }}>Closing Balance</span>
                 <div className="text-right">
@@ -433,13 +458,7 @@ export default function AccountDetail({
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="bg-blue-50/50 border-b border-border">
-                    <td colSpan={6} className="px-4 py-2 text-xs text-muted-foreground font-semibold">Opening Balance</td>
-                    <td className="px-4 py-2 text-right font-mono text-xs font-bold text-foreground">{fmt(activeAccount.openingBalance)}</td>
-                    <td></td>
-                  </tr>
-
-                  {filteredTransactions.map((tx: any) => (
+                  {paginatedTransactions.map((tx: any) => (
                     <tr key={tx.id} className="border-b border-border/60 hover:bg-gray-50 transition-colors group">
                       <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{tx.date.split("-").reverse().join("/")}</td>
                       <td className="px-4 py-3 text-foreground">{tx.description}</td>
@@ -496,6 +515,14 @@ export default function AccountDetail({
                     </tr>
                   ))}
 
+                  {safeCurrentPage === totalPages && (
+                    <tr className="bg-blue-50/50 border-b border-border">
+                      <td colSpan={6} className="px-4 py-2 text-xs text-muted-foreground font-semibold">Opening Balance</td>
+                      <td className="px-4 py-2 text-right font-mono text-xs font-bold text-foreground">{fmt(activeAccount.openingBalance)}</td>
+                      <td></td>
+                    </tr>
+                  )}
+
                   <tr style={{ backgroundColor: activeAccount.bgColor }}>
                     <td colSpan={5} className="px-4 py-3 text-xs font-bold" style={{ color: activeAccount.color }}>Closing Balance</td>
                     <td className="px-4 py-3 text-right font-mono text-xs font-bold text-emerald-600">+{fmt(calcTotalCredit(activeAccount))}</td>
@@ -507,6 +534,75 @@ export default function AccountDetail({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {filteredTransactions.length > 0 && (
+              <div className="px-5 py-3 border-t border-border bg-gray-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-4">
+                  <span>
+                    Showing <span className="font-semibold text-foreground">{startItemIndex}</span> to{" "}
+                    <span className="font-semibold text-foreground">{endItemIndex}</span> of{" "}
+                    <span className="font-semibold text-foreground">{filteredTransactions.length}</span> entries
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span>Rows per page:</span>
+                    <select
+                      value={pageSize}
+                      onChange={(e) => {
+                        setPageSize(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="px-2 py-1 border border-border rounded-lg bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-accent/30 font-medium cursor-pointer"
+                    >
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    disabled={safeCurrentPage === 1}
+                    className="p-1.5 rounded-lg border border-border bg-white hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    title="First Page"
+                  >
+                    <ChevronsLeft size={14} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safeCurrentPage === 1}
+                    className="p-1.5 rounded-lg border border-border bg-white hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    title="Previous Page"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+
+                  <span className="px-3 py-1 font-semibold text-foreground">
+                    Page {safeCurrentPage} of {totalPages}
+                  </span>
+
+                  <button
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={safeCurrentPage === totalPages}
+                    className="p-1.5 rounded-lg border border-border bg-white hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    title="Next Page"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={safeCurrentPage === totalPages}
+                    className="p-1.5 rounded-lg border border-border bg-white hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-white disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    title="Last Page"
+                  >
+                    <ChevronsRight size={14} />
+                  </button>
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
