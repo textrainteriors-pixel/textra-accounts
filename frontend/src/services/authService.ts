@@ -11,12 +11,12 @@ export const authService = {
     const data = await response.json();
     if (!response.ok) throw new Error(data.message || 'Failed to login');
 
-    if (data.token) {
+    if (data.token) { 
       localStorage.setItem('user', JSON.stringify(data));
     }
     return data;
   },
-
+  
   register: async (userData: any) => {
     const response = await fetch(`${API_URL}/register`, {
       method: 'POST',
