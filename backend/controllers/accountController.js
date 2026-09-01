@@ -151,35 +151,37 @@ export const updateOpeningBalance = async (req, res) => {
 export const addTransaction = async (req, res) => {
   try {
     const { date, description, type, amount, reference, document } = req.body;
-    const account = await Account.findById(req.params.id);
 
-    if (account) {
-      const transaction = {
-        date,
-        description,
-        type,
-        amount: Number(amount),
-        reference,
-        document
-      };
+    const transaction = {
+      date,
+      description,
+      type,
+      amount: Number(amount),
+      reference,
+      document
+    };
 
-      account.transactions.push(transaction);
-      await account.save();
-      
-      // Return the new transaction with _id mapped to id
-      const newTx = account.transactions[account.transactions.length - 1];
-      res.status(201).json({
-        id: newTx._id,
-        date: newTx.date,
-        description: newTx.description,
-        type: newTx.type,
-        amount: newTx.amount,
-        reference: newTx.reference,
-        document: newTx.document
-      });
-    } else {
-      res.status(404).json({ message: 'Account not found' });
+    // Atomic $push in MongoDB prevents race conditions and lost transactions
+    const updatedAccount = await Account.findByIdAndUpdate(
+      req.params.id,
+      { $push: { transactions: transaction } },
+      { new: true, runValidators: true }
+    );
+
+    if (!updatedAccount) {
+      return res.status(404).json({ message: 'Account not found' });
     }
+
+    const newTx = updatedAccount.transactions[updatedAccount.transactions.length - 1];
+    res.status(201).json({
+      id: newTx._id,
+      date: newTx.date,
+      description: newTx.description,
+      type: newTx.type,
+      amount: newTx.amount,
+      reference: newTx.reference,
+      document: newTx.document
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -189,18 +191,18 @@ export const addTransaction = async (req, res) => {
 // @route   DELETE /api/accounts/:id/transactions/:txId
 export const deleteTransaction = async (req, res) => {
   try {
-    const account = await Account.findById(req.params.id);
+    // Atomic $pull removes transaction safely without race conditions
+    const updatedAccount = await Account.findByIdAndUpdate(
+      req.params.id,
+      { $pull: { transactions: { _id: req.params.txId } } },
+      { new: true }
+    );
 
-    if (account) {
-      account.transactions = account.transactions.filter(
-        (tx) => tx._id.toString() !== req.params.txId
-      );
-
-      await account.save();
-      res.json({ message: 'Transaction removed' });
-    } else {
-      res.status(404).json({ message: 'Account not found' });
+    if (!updatedAccount) {
+      return res.status(404).json({ message: 'Account not found' });
     }
+
+    res.json({ message: 'Transaction removed' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
