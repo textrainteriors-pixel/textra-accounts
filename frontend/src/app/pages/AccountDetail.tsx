@@ -306,8 +306,8 @@ export default function AccountDetail({
                   className="text-xs px-2.5 py-1.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/30 bg-white cursor-pointer"
                 >
                   <option value="all">All Projects</option>
-                  {activeAccount.projects.map(p => (
-                    <option key={p} value={p}>{p}</option>
+                  {Array.from(new Set(activeAccount.projects)).map((p, idx) => (
+                    <option key={`${p}-${idx}`} value={p}>{p}</option>
                   ))}
                 </select>
               )}

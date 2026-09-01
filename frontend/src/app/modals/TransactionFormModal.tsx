@@ -131,8 +131,8 @@ export default function TransactionFormModal({
                 className="w-full border border-border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-accent/30 bg-input-background"
               >
                 <option value="">Select Project</option>
-                {(modalAccount.projects || []).map((proj: string) => (
-                  <option key={proj} value={proj}>{proj}</option>
+                {Array.from(new Set(modalAccount.projects || [])).map((proj: string, idx: number) => (
+                  <option key={`${proj}-${idx}`} value={proj}>{proj}</option>
                 ))}
               </select>
             </div>
