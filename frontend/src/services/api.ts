@@ -14,17 +14,23 @@ const getAuthHeaders = (): Record<string, string> => {
   return { 'Content-Type': 'application/json' };
 };
 
+const handleResponse = async (response: Response, defaultErrorMsg: string) => {
+  if (!response.ok) {
+    if (response.status === 401) {
+      authService.logout();
+      window.location.href = '/';
+      throw new Error('Your session expired. Please log in again.');
+    }
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.message || defaultErrorMsg);
+  }
+  return response.json();
+};
+
 export const accountService = {
   getAccounts: async () => {
     const response = await fetch(API_URL, { headers: getAuthHeaders() });
-    if (!response.ok) {
-      if (response.status === 401) {
-        authService.logout();
-        // Removed window.location.reload() to prevent infinite loops
-      }
-      throw new Error('Failed to fetch accounts');
-    }
-    return response.json();
+    return handleResponse(response, 'Failed to fetch accounts');
   },
 
   createAccount: async (accountData: any) => {
@@ -33,8 +39,7 @@ export const accountService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(accountData),
     });
-    if (!response.ok) throw new Error('Failed to create account');
-    return response.json();
+    return handleResponse(response, 'Failed to create account');
   },
 
   updateAccountName: async (id: string, name: string) => {
@@ -43,8 +48,7 @@ export const accountService = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ name }),
     });
-    if (!response.ok) throw new Error('Failed to update account name');
-    return response.json();
+    return handleResponse(response, 'Failed to update account name');
   },
 
   updateAccount: async (id: string, accountData: any) => {
@@ -53,8 +57,7 @@ export const accountService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(accountData),
     });
-    if (!response.ok) throw new Error('Failed to update account');
-    return response.json();
+    return handleResponse(response, 'Failed to update account');
   },
 
   deleteAccount: async (id: string) => {
@@ -62,8 +65,7 @@ export const accountService = {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
-    if (!response.ok) throw new Error('Failed to delete account');
-    return response.json();
+    return handleResponse(response, 'Failed to delete account');
   },
 
   seedAccounts: async () => {
@@ -71,8 +73,7 @@ export const accountService = {
       method: 'POST',
       headers: getAuthHeaders()
     });
-    if (!response.ok) throw new Error('Failed to seed accounts');
-    return response.json();
+    return handleResponse(response, 'Failed to seed accounts');
   },
 
   updateOpeningBalance: async (id: string, openingBalance: number) => {
@@ -81,8 +82,7 @@ export const accountService = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ openingBalance }),
     });
-    if (!response.ok) throw new Error('Failed to update balance');
-    return response.json();
+    return handleResponse(response, 'Failed to update balance');
   },
 
   addTransaction: async (accountId: string, transaction: any) => {
@@ -91,8 +91,7 @@ export const accountService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(transaction),
     });
-    if (!response.ok) throw new Error('Failed to add transaction');
-    return response.json();
+    return handleResponse(response, 'Failed to add transaction');
   },
 
   deleteTransaction: async (accountId: string, txId: string) => {
@@ -100,8 +99,7 @@ export const accountService = {
       method: 'DELETE',
       headers: getAuthHeaders()
     });
-    if (!response.ok) throw new Error('Failed to delete transaction');
-    return response.json();
+    return handleResponse(response, 'Failed to delete transaction');
   },
 
   updateTransaction: async (accountId: string, txId: string, transaction: any) => {
@@ -110,8 +108,7 @@ export const accountService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(transaction)
     });
-    if (!response.ok) throw new Error('Failed to update transaction');
-    return response.json();
+    return handleResponse(response, 'Failed to update transaction');
   },
 
   addProject: async (accountId: string, projectName: string) => {
@@ -120,8 +117,7 @@ export const accountService = {
       headers: getAuthHeaders(),
       body: JSON.stringify({ projectName }),
     });
-    if (!response.ok) throw new Error('Failed to add project');
-    return response.json();
+    return handleResponse(response, 'Failed to add project');
   }
 };
 
@@ -129,8 +125,7 @@ export const reminderService = {
   getReminders: async () => {
     const url = API_URL.replace('/accounts', '/reminders');
     const response = await fetch(url, { headers: getAuthHeaders() });
-    if (!response.ok) throw new Error('Failed to fetch reminders');
-    return response.json();
+    return handleResponse(response, 'Failed to fetch reminders');
   },
 
   createReminder: async (reminderData: { text: string; date: string; repeatMonthly?: boolean }) => {
@@ -140,8 +135,7 @@ export const reminderService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(reminderData),
     });
-    if (!response.ok) throw new Error('Failed to create reminder');
-    return response.json();
+    return handleResponse(response, 'Failed to create reminder');
   },
 
   updateReminder: async (id: string, reminderData: { text?: string; date?: string; completed?: boolean; repeatMonthly?: boolean }) => {
@@ -151,8 +145,7 @@ export const reminderService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(reminderData),
     });
-    if (!response.ok) throw new Error('Failed to update reminder');
-    return response.json();
+    return handleResponse(response, 'Failed to update reminder');
   },
 
   deleteReminder: async (id: string) => {
@@ -161,7 +154,6 @@ export const reminderService = {
       method: 'DELETE',
       headers: getAuthHeaders(),
     });
-    if (!response.ok) throw new Error('Failed to delete reminder');
-    return response.json();
+    return handleResponse(response, 'Failed to delete reminder');
   },
 };
